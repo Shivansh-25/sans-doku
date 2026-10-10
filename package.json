@@ -1,0 +1,20 @@
+{
+  "name": "sansdoku",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build && node scripts/build-worker.mjs && node scripts/validate-artifact.mjs",
+    "preview": "node --env-file-if-exists=.env.local scripts/serve.mjs",
+    "test": "tsx --test tests/*.test.ts",
+    "puzzles:import": "node --env-file-if-exists=.env.local --import tsx scripts/import-puzzles.ts",
+    "dev:api": "PORT=8787 node --env-file-if-exists=.env.local scripts/serve.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.7",
+    "vite-plugin-pwa": "^1.1.0",
+    "tsx": "^4.20.6"
+  }
+}

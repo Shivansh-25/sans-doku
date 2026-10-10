@@ -1,0 +1,5 @@
+{
+  "name": "sansdoku",
+  "main": "dist/server/index.js",
+  "compatibility_date": "2026-10-10"
+}
