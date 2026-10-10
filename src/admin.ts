@@ -66,10 +66,11 @@ function table(id: string, headings: string[], rows: (string | Node)[][]) {
   t.append(body);
   target.append(t);
 }
-function playerButton(row: Row) {
+function playerButton(row: Row, label = text(row.nickname)) {
   const b = document.createElement("button");
   b.className = "player-link";
-  b.textContent = text(row.nickname);
+  b.textContent = label;
+  b.setAttribute("aria-label", `View stats for ${text(row.nickname)}`);
   b.onclick = () => {
     player = text(row.player_id);
     playerName = text(row.nickname);
@@ -168,6 +169,7 @@ async function refresh() {
       "#players",
       [
         "Nickname",
+        "Stats",
         "Player ID",
         "Started",
         "Completed",
@@ -179,6 +181,7 @@ async function refresh() {
       ],
       data.players.map((p) => [
         playerButton(p),
+        playerButton(p, "View stats"),
         text(p.player_id).slice(0, 8),
         text(p.started),
         text(p.completed),
