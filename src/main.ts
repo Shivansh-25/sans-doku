@@ -13,6 +13,7 @@ import {
 import { load, save } from "./storage";
 import { newPuzzle, replenish } from "./puzzle-source";
 import { getTheme, setTheme, type Theme } from "./theme";
+import { celebrate, clearCelebration } from "./celebration";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 const initialSaved = load("easy");
 let busy = false;
@@ -26,7 +27,7 @@ let timer: ReturnType<typeof setTimeout> | undefined,
   updateReady = false;
 const icon = (name: string) =>
   ({ undo: "↶", erase: "⌫", notes: "✎", settings: "⚙", new: "＋" })[name] || "";
-app.innerHTML = `<main class="shell"><header><a class="brand" href="/" aria-label="SansDoku home"><span class="brand-mark">▦</span> SansDoku<span class="brand-dot">.</span></a><button class="icon-button" id="settings" aria-label="Open settings">${icon("settings")}</button></header><section class="intro"><p class="eyebrow">A LITTLE MOMENT FOR YOU</p><h1>One square at a time.</h1><p class="subtitle">No rush. Just you and a little possibility.</p></section><nav class="difficulties" aria-label="Difficulty">${(["easy", "medium", "hard"] as Difficulty[]).map((d) => `<button data-difficulty="${d}" aria-pressed="${d === difficulty}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</nav><section class="game-area" aria-label="Sudoku game"><div class="game-meta"><span id="progress"></span><span id="saved" class="saved"></span></div><div id="board" class="board" role="group" aria-label="Sudoku board"></div><p class="game-message" id="message" role="status" aria-live="polite">Pick a square. Make a little progress.</p><div class="tools"><button id="undo">${icon("undo")}<span>Undo</span></button><button id="erase">${icon("erase")}<span>Erase</span></button><button id="notes" aria-pressed="false">${icon("notes")}<span>Notes</span></button></div><div class="number-pad" aria-label="Number pad">${Array.from({ length: 9 }, (_, i) => `<button data-number="${i + 1}" aria-label="Enter ${i + 1}">${i + 1}</button>`).join("")}</div><button id="new-game" class="new-game">${icon("new")} New puzzle</button></section><footer><span class="small-heart">♡</span> A little space to slow down.<span id="offline-status"></span><button id="update" hidden>Update available</button></footer></main><dialog id="settings-dialog"><div class="dialog-top"><h2>Your little space</h2><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div><fieldset class="appearance"><legend>Appearance</legend><div class="theme-options">${["light", "dark", "system"].map((t) => `<button data-theme-choice="${t}" aria-pressed="${getTheme() === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div></fieldset><p>On iPhone, open in Safari, tap Share, then Add to Home Screen.</p><p id="offline-detail"></p><p>Games are saved on this device. Clearing website data will remove them.</p><details><summary>A little shortcut</summary><p>Long-press Notes to toggle automatic candidates. They update as you play. Turn them off to return to your manual notes. Writing a manual note also turns them off.</p><button class="primary" id="fill-candidates">Fill candidates</button></details></dialog><dialog id="new-dialog"><h2>A fresh start?</h2><p>This replaces your saved ${difficulty} puzzle. Your other difficulties stay saved.</p><div class="dialog-actions"><button id="cancel-new">Keep playing</button><button class="primary" id="confirm-new">New puzzle</button></div></dialog>`;
+app.innerHTML = `<main class="shell"><header><a class="brand" href="/" aria-label="SansDoku home"><span class="brand-mark">▦</span> SansDoku<span class="brand-dot">.</span></a><button class="icon-button" id="settings" aria-label="Open settings">${icon("settings")}</button></header><section class="intro"><p class="eyebrow">A LITTLE MOMENT FOR YOU</p><h1>One square at a time.</h1><p class="subtitle">No rush. Just you and a little possibility.</p></section><nav class="difficulties" aria-label="Difficulty">${(["easy", "medium", "hard"] as Difficulty[]).map((d) => `<button data-difficulty="${d}" aria-pressed="${d === difficulty}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</nav><section class="game-area" aria-label="Sudoku game"><div class="game-meta"><span id="progress"></span><span id="saved" class="saved"></span></div><div id="board" class="board" role="group" aria-label="Sudoku board"></div><p class="game-message" id="message" role="status" aria-live="polite">Pick a square. Make a little progress.</p><div class="tools"><button id="undo">${icon("undo")}<span>Undo</span></button><button id="erase">${icon("erase")}<span>Erase</span></button><button id="notes" aria-pressed="false">${icon("notes")}<span>Notes</span></button></div><div class="number-pad" aria-label="Number pad">${Array.from({ length: 9 }, (_, i) => `<button data-number="${i + 1}" aria-label="Enter ${i + 1}">${i + 1}</button>`).join("")}</div><button id="new-game" class="new-game">${icon("new")} New puzzle</button></section><footer><span class="small-heart">♡</span><span id="footer-message">A little space to slow down.</span><span id="offline-status"></span><button id="update" hidden>Update available</button></footer></main><dialog id="settings-dialog"><div class="dialog-top"><h2>Your little space</h2><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div><fieldset class="appearance"><legend>Appearance</legend><div class="theme-options">${["light", "dark", "system", "sans"].map((t) => `<button data-theme-choice="${t}" aria-pressed="${getTheme() === t}">${t === "sans" ? "Sans mode ♡" : t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div></fieldset><p>On iPhone, open in Safari, tap Share, then Add to Home Screen.</p><p id="offline-detail"></p><p>Games are saved on this device. Clearing website data will remove them.</p><details><summary>A little shortcut</summary><p>Long-press Notes to toggle automatic candidates. They update as you play. Turn them off to return to your manual notes. Writing a manual note also turns them off.</p><button class="primary" id="fill-candidates">Fill candidates</button></details></dialog><dialog id="new-dialog"><h2>A fresh start?</h2><p>This replaces your saved ${difficulty} puzzle. Your other difficulties stay saved.</p><div class="dialog-actions"><button id="cancel-new">Keep playing</button><button class="primary" id="confirm-new">New puzzle</button></div></dialog>`;
 const board = document.querySelector<HTMLDivElement>("#board")!;
 for (let i = 0; i < 81; i++) {
   const b = document.createElement("button");
@@ -44,7 +45,24 @@ function persist() {
     ? "✓ Saved on this device"
     : "Saving unavailable";
 }
+function renderAppearance() {
+  const sans = getTheme() === "sans";
+  document.querySelector(".brand-mark")!.textContent = sans ? "♡" : "▦";
+  document.querySelector(".eyebrow")!.textContent = sans
+    ? "♡ SANS MODE · YOUR LITTLE LOVE STORY ♡"
+    : "A LITTLE MOMENT FOR YOU";
+  document.querySelector("h1")!.textContent = sans
+    ? "Enchanted, one square at a time."
+    : "One square at a time.";
+  document.querySelector(".subtitle")!.textContent = sans
+    ? "A little pink, a little Lover, a moment just for you."
+    : "No rush. Just you and a little possibility.";
+  document.querySelector("#footer-message")!.textContent = sans
+    ? "Sweet Nothing. Just you and your little puzzle."
+    : "A little space to slow down.";
+}
 function render() {
+  renderAppearance();
   const isComplete = completed(game.values),
     value = selected >= 0 ? game.values[selected] : 0;
   board.querySelectorAll<HTMLButtonElement>(".cell").forEach((b, i) => {
@@ -79,17 +97,23 @@ function render() {
     b.setAttribute("aria-pressed", String(selected === i));
   });
   document.querySelector("#progress")!.textContent = isComplete
-    ? "Beautifully done ♡"
+    ? getTheme() === "sans" ? "Long Live this little win ♡" : "Beautifully done ♡"
     : `${game.values.filter(Boolean).length} / 81 filled`;
   document.querySelector("#message")!.textContent = isComplete
-    ? "You did it. A little win, just for you."
+    ? getTheme() === "sans" ? "Today Was a Fairytale — you solved it, sweetheart! ♡" : "You did it. A little win, just for you."
     : game.autoCandidates
       ? noteMode
         ? "Writing a note switches to manual candidates."
         : "Automatic candidates on · long-press Notes to turn off."
       : noteMode
-        ? "Pencil mode · tap a number to leave a note."
-        : "Pick a square. Make a little progress.";
+        ? getTheme() === "sans" ? "Blank Space ♡ Pencil mode · tap a number to leave a note." : "Pencil mode · tap a number to leave a note."
+        : getTheme() === "sans"
+          ? game.values.some((_, i) => conflicts(game.values, i))
+            ? "Shake It Off ♡ Check the highlighted numbers and try again."
+            : game.values.filter(Boolean).length >= 60
+              ? "Daylight ♡ The finish is getting closer, one square at a time."
+              : "Begin Again ♡ Pick a square. Your little Love Story starts here."
+          : "Pick a square. Make a little progress.";
   (document.querySelector("#undo") as HTMLButtonElement).disabled =
     !game.history.length;
   const notesButton = document.querySelector<HTMLButtonElement>("#notes")!;
@@ -113,9 +137,12 @@ function render() {
 function change(n: number) {
   if (busy) return;
   if (selected < 0) return;
+  const wasComplete = completed(game.values);
   if (enter(game, selected, n, noteMode)) {
     persist();
     render();
+    if (!wasComplete && completed(game.values) && getTheme() === "sans")
+      celebrate();
   }
 }
 function autoNotes() {
@@ -133,6 +160,7 @@ document
 document.querySelectorAll<HTMLButtonElement>("[data-difficulty]").forEach(
   (b) =>
     (b.onclick = () => {
+      clearCelebration();
       difficulty = b.dataset.difficulty as Difficulty;
       const saved = load(difficulty);
       game = saved || createGame(difficulty);
@@ -144,6 +172,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-difficulty]").forEach(
     }),
 );
 document.querySelector<HTMLButtonElement>("#undo")!.onclick = () => {
+  clearCelebration();
   undo(game);
   persist();
   render();
@@ -209,6 +238,7 @@ document.querySelector<HTMLButtonElement>("#confirm-new")!.onclick = () => {
 };
 async function startFresh() {
   if (busy) return;
+  clearCelebration();
   busy = true;
   document
     .querySelectorAll<HTMLButtonElement>(
@@ -232,7 +262,7 @@ async function startFresh() {
   render();
   document.querySelector("#message")!.textContent =
     result.source === "fresh"
-      ? "A fresh puzzle, just for you."
+      ? getTheme() === "sans" ? "Everything Has Changed ♡ A fresh puzzle, just for you." : "A fresh puzzle, just for you."
       : result.source === "reserve"
         ? "From your saved offline puzzles."
         : "An offline puzzle, ready when you are.";
@@ -241,6 +271,9 @@ document.querySelectorAll<HTMLButtonElement>("[data-theme-choice]").forEach(
   (b) =>
     (b.onclick = () => {
       setTheme(b.dataset.themeChoice as Theme);
+      if (getTheme() !== "sans") clearCelebration();
+      if (!busy) render();
+      else renderAppearance();
       document
         .querySelectorAll("[data-theme-choice]")
         .forEach((option) =>

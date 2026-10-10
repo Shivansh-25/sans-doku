@@ -25,6 +25,8 @@ The development server does not enable the service worker. Test offline support 
 
 ## Features
 
+- Sans mode: a saved blush-pink appearance with hearts and original messages referencing Taylor Swift song titles. Choose it in Settings → Appearance.
+- Completing a puzzle in Sans mode celebrates with falling hearts and “Love you my cutu ♡”. The card dismisses automatically or on tap; reduced-motion settings hide the falling hearts.
 - Easy, medium, hard; one saved game per difficulty.
 - Pencil notes, undo, erase, conflict highlighting, completion detection. Entering a number removes that candidate from manual notes in its row, column, and box; erasing does not recreate notes, and Undo restores removed notes.
 - Long-press Notes to toggle automatic candidates; the same action is under Settings → A little shortcut. While enabled, candidates update with the board. Turning it off restores your manual notes; writing a manual note also exits automatic mode. The mode is saved per puzzle and toggles can be undone.

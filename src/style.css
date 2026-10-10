@@ -42,6 +42,53 @@
   --note: #b1c4a3;
   --on-primary: #1c2420;
 }
+:root[data-theme="sans"] {
+  color-scheme: light;
+  --page: #fff1f6;
+  --ink: #57263e;
+  --board: #fffafd;
+  --sage: #ab366a;
+  --border: #e9c8d7;
+  --muted: #87566e;
+  --surface: #f9dfeb;
+  --accent-ink: #93305b;
+  --grid-strong: #a96685;
+  --entry: #a32c65;
+  --peer: #fce9f1;
+  --matching: #f7d3e3;
+  --selection: #efbad2;
+  --selection-border: #a22e62;
+  --danger: #a52322;
+  --note: #79324f;
+  --on-primary: #ffffff;
+}
+:root[data-theme="sans"] body {
+  background:
+    radial-gradient(ellipse at 0% 0%, #fbd2e6 0, transparent 45%),
+    radial-gradient(ellipse at 100% 80%, #fce0ee 0, transparent 45%);
+}
+:root[data-theme="sans"] .intro::before {
+  content: "♡  ♥  ♡";
+  display: block;
+  color: var(--sage);
+  letter-spacing: 12px;
+  font-size: 20px;
+  margin-bottom: 12px;
+}
+:root[data-theme="sans"] h1 {
+  font-size: clamp(25px, 6.7vw, 31px);
+}
+:root[data-theme="sans"] .board {
+  box-shadow: 0 8px 24px #ab366a14;
+}
+:root[data-theme="sans"] .small-heart {
+  font-size: 24px;
+}
+:root[data-theme="sans"] button:focus-visible,
+:root[data-theme="sans"] a:focus-visible,
+:root[data-theme="sans"] summary:focus-visible {
+  outline-color: var(--sage);
+}
 * {
   box-sizing: border-box;
 }
@@ -436,7 +483,8 @@ summary {
   border: 0;
   border-radius: 9px;
   background: transparent;
-  font-size: 12px;
+  font-size: 11px;
+  padding: 4px;
 }
 .theme-options button[aria-pressed="true"] {
   background: var(--board);
@@ -473,4 +521,72 @@ summary {
 .tools button[data-auto-candidates="true"] {
   color: var(--sage);
   background: var(--matching);
+}
+
+.celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.heart-confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.heart-confetti span {
+  position: absolute;
+  left: var(--left);
+  top: -50px;
+  font-size: var(--size);
+  color: #cc397b;
+  animation: heart-fall var(--duration) var(--delay) ease-in both;
+}
+.heart-confetti span:nth-child(3n) { color: #ed8db9; }
+.heart-confetti span:nth-child(3n + 1) { color: #a62860; }
+.celebration-card {
+  position: relative;
+  width: min(100%, 330px);
+  padding: 26px 20px 22px;
+  border: 1px solid #eab5ce;
+  border-radius: 24px;
+  background: #fff5fa;
+  color: #672541;
+  text-align: center;
+  box-shadow: 0 12px 60px #7f244b30;
+  pointer-events: auto;
+}
+.celebration-heart {
+  font-size: 44px;
+  color: #b3316c;
+}
+.celebration-card h2 {
+  font: 26px Georgia, serif;
+  margin: 10px 0;
+}
+.celebration-card p {
+  font-size: 13px;
+  color: #87566e;
+  margin: 0 0 20px;
+}
+.celebration-card button {
+  min-height: 44px;
+  padding: 10px 22px;
+  border: 0;
+  border-radius: 14px;
+  background: #ab366a;
+  color: white;
+  font-size: 13px;
+}
+@keyframes heart-fall {
+  from { transform: translate3d(0, -40px, 0) rotate(-20deg); opacity: 0; }
+  10% { opacity: 1; }
+  85% { opacity: 1; }
+  to { transform: translate3d(var(--drift), calc(100dvh + 100px), 0) rotate(55deg); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .heart-confetti { display: none; }
 }
