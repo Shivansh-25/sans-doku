@@ -131,6 +131,22 @@ export function enter(
     remember(game);
     game.values[index] = n;
     game.notes[index] = [];
+    if (n) {
+      const row = Math.floor(index / 9);
+      const col = index % 9;
+      game.notes.forEach((notes, peer) => {
+        const peerRow = Math.floor(peer / 9);
+        const peerCol = peer % 9;
+        if (
+          peerRow === row ||
+          peerCol === col ||
+          (Math.floor(peerRow / 3) === Math.floor(row / 3) &&
+            Math.floor(peerCol / 3) === Math.floor(col / 3))
+        ) {
+          game.notes[peer] = notes.filter((candidate) => candidate !== n);
+        }
+      });
+    }
   }
   return true;
 }

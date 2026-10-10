@@ -113,3 +113,53 @@ test("old saved games remain valid and invalid automatic modes are rejected", ()
   assert.ok(validGame(g, "easy"));
   assert.equal(validGame({ ...g, autoCandidates: "yes" }, "easy"), false);
 });
+
+test("number entry prunes only matching manual notes in peers and undo restores all notes", () => {
+  const g = gameFromPuzzle("easy", "0".repeat(81));
+  for (const i of [10, 16, 64, 20, 80]) {
+    for (const n of [1, 4, 9]) enter(g, i, n, true);
+  }
+  const before = JSON.stringify({ values: g.values, notes: g.notes });
+  enter(g, 10, 4);
+  assert.deepEqual(g.notes[10], []);
+  for (const peer of [16, 64, 20]) assert.deepEqual(g.notes[peer], [1, 9]);
+  assert.deepEqual(g.notes[80], [1, 4, 9]);
+  assert.equal(g.autoCandidates, false);
+  undo(g);
+  assert.equal(JSON.stringify({ values: g.values, notes: g.notes }), before);
+});
+
+test("replacement prunes the new number and erasing does not recreate manual notes", () => {
+  const g = gameFromPuzzle("easy", "0".repeat(81));
+  for (const n of [1, 4, 9]) enter(g, 16, n, true);
+  enter(g, 10, 4);
+  enter(g, 10, 9);
+  assert.deepEqual(g.notes[16], [1]);
+  enter(g, 10, 0);
+  assert.deepEqual(g.notes[16], [1]);
+  undo(g);
+  assert.equal(g.values[10], 9);
+  assert.deepEqual(g.notes[16], [1]);
+  undo(g);
+  assert.equal(g.values[10], 4);
+  assert.deepEqual(g.notes[16], [1, 9]);
+});
+
+test("writing a pencil note does not remove notes elsewhere", () => {
+  const g = gameFromPuzzle("easy", "0".repeat(81));
+  enter(g, 16, 4, true);
+  enter(g, 10, 4, true);
+  assert.deepEqual(g.notes[16], [4]);
+  assert.deepEqual(g.notes[10], [4]);
+});
+
+test("manual notes stay cleaned up when switching back from automatic candidates", () => {
+  const g = gameFromPuzzle("easy", "0".repeat(81));
+  enter(g, 16, 4, true);
+  enter(g, 16, 9, true);
+  toggleAutoCandidates(g);
+  enter(g, 10, 4);
+  assert.equal(g.autoCandidates, true);
+  toggleAutoCandidates(g);
+  assert.deepEqual(visibleNotes(g, 16), [9]);
+});
