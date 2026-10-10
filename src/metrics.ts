@@ -1,6 +1,7 @@
 import { completed, type Game } from "./game";
 import { getProfile } from "./profile";
 import { PlayClock } from "./play-clock";
+import { addDailyTime, type DailyTime } from "./daily-time";
 type Play = {
   key: string;
   id: string;
@@ -12,6 +13,8 @@ type Play = {
   lastPlayedAt: number;
   completedAt: number | null;
   activeMs: number;
+  days: DailyTime[];
+  syncedDays: Record<string, number>;
   autoUsed: boolean;
   moves: number;
   filled: number;
@@ -33,7 +36,12 @@ try {
           Number.isFinite(p.activeMs) &&
           Number.isInteger(p.revision),
       )
-      .map((p) => ({ ...p, lastPlayedAt: p.lastPlayedAt || p.startedAt }));
+      .map((p) => ({
+        ...p,
+        lastPlayedAt: p.lastPlayedAt || p.startedAt,
+        days: p.days || [],
+        syncedDays: p.syncedDays || {},
+      }));
 } catch {}
 let current: Play | undefined;
 let clock: PlayClock | undefined;
@@ -55,10 +63,20 @@ function dirty(p: Play) {
   p.revision++;
   p.dirty = true;
 }
+function recordTime(elapsed: number) {
+  if (!current || !clock || elapsed <= 0) return;
+  current.activeMs += elapsed;
+  addDailyTime(
+    current.days,
+    Math.round(performance.timeOrigin + clock.lastInterval.start),
+    elapsed,
+  );
+  current.days = current.days.slice(-366);
+}
 function accrue() {
   if (current && clock && !current.completedAt) {
     const elapsed = Math.round(clock.tick(performance.now()));
-    current.activeMs += elapsed;
+    recordTime(elapsed);
     if (elapsed > 0) {
       current.lastPlayedAt = Date.now();
       dirty(current);
@@ -93,6 +111,8 @@ export function touchMetrics(game: Game, move = false) {
         lastPlayedAt: Date.now(),
         completedAt: null,
         activeMs: 0,
+        days: [],
+        syncedDays: {},
         autoUsed: false,
         moves: 0,
         filled: game.values.filter(Boolean).length,
@@ -105,7 +125,7 @@ export function touchMetrics(game: Game, move = false) {
     clock.visibility(performance.now(), !document.hidden);
   }
   if (clock && !current.completedAt)
-    current.activeMs += Math.round(clock.touch(performance.now()));
+    recordTime(Math.round(clock.touch(performance.now())));
   current.lastPlayedAt = Date.now();
   current.nickname = profile.nickname || "Guest";
   current.filled = game.values.filter(Boolean).length;
@@ -119,17 +139,28 @@ export function touchMetrics(game: Game, move = false) {
 }
 export async function syncMetrics(keepalive = false) {
   if (syncing || !navigator.onLine) return;
+  let payloadSize = 0;
   const batch = plays
     .filter((p) => p.dirty)
-    .slice(0, 20)
-    .map((p) => ({
-      ...p,
-      playing:
-        p === current &&
-        !p.completedAt &&
-        Boolean(clock?.active(performance.now())) &&
-        !document.hidden,
-    }));
+    .map((p) => {
+      const { key: _key, dirty: _dirty, syncedDays: _syncedDays, ...body } = p;
+      return {
+        ...body,
+        days: p.days.filter((d) => d.activeMs > (p.syncedDays[d.day] || 0)),
+        playing:
+          p === current &&
+          !p.completedAt &&
+          Boolean(clock?.active(performance.now())) &&
+          !document.hidden,
+      };
+    })
+    .filter((p) => {
+      const size = JSON.stringify(p).length + 100;
+      if (payloadSize + size > 26000) return false;
+      payloadSize += size;
+      return true;
+    })
+    .slice(0, 20);
   if (!batch.length) return;
   syncing = true;
   lastSync = Date.now();
@@ -138,7 +169,7 @@ export async function syncMetrics(keepalive = false) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        plays: batch.map(({ key: _key, dirty: _dirty, ...p }) => p),
+        plays: batch,
       }),
       keepalive,
       signal: AbortSignal.timeout(7000),
@@ -146,7 +177,14 @@ export async function syncMetrics(keepalive = false) {
     if (response.ok) {
       for (const sent of batch) {
         const live = plays.find((p) => p.id === sent.id);
-        if (live?.revision === sent.revision) live.dirty = false;
+        if (live) {
+          for (const d of sent.days)
+            live.syncedDays[d.day] = Math.max(
+              live.syncedDays[d.day] || 0,
+              d.activeMs,
+            );
+          if (live.revision === sent.revision) live.dirty = false;
+        }
       }
       persist();
     }
@@ -171,8 +209,8 @@ setInterval(() => {
 }, 10_000);
 document.addEventListener("visibilitychange", () => {
   if (current && clock && !current.completedAt) {
-    current.activeMs += Math.round(
-      clock.visibility(performance.now(), !document.hidden),
+    recordTime(
+      Math.round(clock.visibility(performance.now(), !document.hidden)),
     );
     dirty(current);
   }
@@ -190,8 +228,8 @@ window.addEventListener("online", () => void syncMetrics());
 void syncMetrics();
 window.addEventListener("pageshow", () => {
   if (current && clock && !current.completedAt) {
-    current.activeMs += Math.round(
-      clock.visibility(performance.now(), !document.hidden),
+    recordTime(
+      Math.round(clock.visibility(performance.now(), !document.hidden)),
     );
     dirty(current);
     persist();

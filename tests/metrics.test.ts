@@ -246,3 +246,69 @@ test("offline sync keeps the original last-played time rather than upload time",
     DB.close();
   }
 });
+
+test("daily time splits at India midnight and averages include quiet calendar periods", async () => {
+  const { addDailyTime, activitySummary } = await import("../src/daily-time");
+  const days: { day: string; activeMs: number }[] = [];
+  addDailyTime(days, Date.UTC(2026, 9, 10, 18, 29, 50), 20000);
+  assert.deepEqual(days, [
+    { day: "2026-10-10", activeMs: 10000 },
+    { day: "2026-10-11", activeMs: 10000 },
+  ]);
+  const summary = activitySummary(days, 7, Date.UTC(2026, 9, 11, 8));
+  assert.equal(summary.daily.length, 7);
+  assert.equal(summary.total, 20000);
+  assert.equal(summary.averageWeek, 20000);
+  assert.equal(summary.averageDay, 20000 / 7);
+  assert.equal(summary.mostActive?.day, "2026-10-10");
+  const months = activitySummary(
+    [
+      { day: "2026-09-30", activeMs: 60000 },
+      { day: "2026-10-01", activeMs: 120000 },
+    ],
+    7,
+    Date.UTC(2026, 9, 2),
+  );
+  assert.equal(months.monthly.length, 2);
+  assert.equal(months.averageMonth, 90000);
+});
+
+test("daily snapshots deduplicate retries, filter players, and reject stale or unauthorized changes", async () => {
+  const DB = localDatabase();
+  const day = new Date(Date.now() + 19800000).toISOString().slice(0, 10);
+  const p = makePlay({ days: [{ day, activeMs: 3000 }] });
+  try {
+    assert.equal((await ingest(DB, [p])).status, 200);
+    await ingest(DB, [p]);
+    let s = await stats(DB);
+    assert.deepEqual(s.daily, [{ day, activeMs: 3000 }]);
+    await ingest(DB, [
+      { ...p, revision: 2, activeMs: 9000, days: [{ day, activeMs: 9000 }] },
+    ]);
+    await ingest(DB, [
+      { ...p, revision: 1, activeMs: 99000, days: [{ day, activeMs: 99000 }] },
+    ]);
+    await ingest(DB, [
+      {
+        ...p,
+        revision: 3,
+        token: crypto.randomUUID(),
+        activeMs: 99000,
+        days: [{ day, activeMs: 99000 }],
+      },
+    ]);
+    s = await stats(DB, `&player=${p.playerId}`);
+    assert.equal(s.daily[0].activeMs, 9000);
+    assert.equal(
+      (await ingest(DB, [{ ...p, days: [{ day: "2026-02-30", activeMs: 1 }] }]))
+        .status,
+      400,
+    );
+    assert.equal(
+      (await ingest(DB, [{ ...p, days: [{ day, activeMs: 90000 }] }])).status,
+      400,
+    );
+  } finally {
+    DB.close();
+  }
+});

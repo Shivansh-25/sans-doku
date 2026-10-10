@@ -1,5 +1,6 @@
 // Count visible play, stopping at 60 seconds without an interaction.
 export class PlayClock {
+  lastInterval = { start: 0, end: 0 };
   private checkpoint: number;
   private interaction: number;
   private visible = true;
@@ -8,6 +9,12 @@ export class PlayClock {
     this.interaction = now;
   }
   tick(now: number): number {
+    this.lastInterval = {
+      start: this.checkpoint,
+      end: this.visible
+        ? Math.max(this.checkpoint, Math.min(now, this.interaction + 60_000))
+        : this.checkpoint,
+    };
     const elapsed = this.visible
       ? Math.max(0, Math.min(now, this.interaction + 60_000) - this.checkpoint)
       : 0;

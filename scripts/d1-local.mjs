@@ -10,6 +10,12 @@ export function localDatabase(path = ":memory:") {
       "utf8",
     ),
   );
+  db.exec(
+    readFileSync(
+      new URL("../migrations/0002_daily_time.sql", import.meta.url),
+      "utf8",
+    ),
+  );
   return {
     prepare(sql) {
       return {

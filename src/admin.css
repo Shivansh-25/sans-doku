@@ -159,3 +159,14 @@ th {
   background-position: right 12px center;
   background-size: 12px 8px;
 }
+
+summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 12px 0;
+  font-size: 13px;
+  color: #526c58;
+}
+details {
+  margin-top: 8px;
+}

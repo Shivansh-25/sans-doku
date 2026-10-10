@@ -67,12 +67,18 @@ References: [Access applications](https://developers.cloudflare.com/cloudflare-o
 
 D1 Free includes **5 GB total storage**, **5 million rows read/day**, and **100,000 rows written/day**. A single free-plan D1 database is limited to **500 MB**. These allowances are shared across your account, and table/index writes both count. Free daily query limits reset at midnight UTC. Exceeding them makes queries fail rather than automatically charging overage; play continues locally and metrics retry later.
 
-Estimated storage is roughly **0.5–1 KB per game including indexes**: 10,000 games should be around **5–10 MB**. This is an estimate, not a measured guarantee. Normal small personal-app usage should cost **$0 for D1** within the free limits. There is no need to enable Workers Paid for this feature.
+Estimated storage is roughly **0.5–1.5 KB per game including indexes and a small number of daily rows**: 10,000 games should be around **5–15 MB**. Puzzles played across many days need additional daily rows. This is an estimate, not a measured guarantee. Normal small personal-app usage should cost **$0 for D1** within the free limits. There is no need to enable Workers Paid for this feature.
 
-A heartbeat updates the game row and its presence index. Budget roughly **4 row writes per minute per active player**, plus initial/final writes. Idle players don't keep writing indefinitely. Dashboard polling reads totals and per-player aggregates for the selected period, so its read usage grows with game history. Check Cloudflare → Storage & databases → D1 → sansdoku-metrics → Metrics for real storage/read/write consumption.
+A heartbeat updates the game row, its presence index, and changed daily time records. Only changed days are sent; already synced past days are not rewritten. Budget roughly **6 row writes per minute per active player**, plus initial/final writes. Idle players don't keep writing indefinitely. Dashboard polling reads totals and per-player aggregates for the selected period, so its read usage grows with game history. Check Cloudflare → Storage & databases → D1 → sansdoku-metrics → Metrics for real storage/read/write consumption.
 
 Sources: [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) and [D1 limits](https://developers.cloudflare.com/d1/platform/limits/).
 
 ## Current setup status
 
 The database exists. Production Access configuration is still pending: the connected CLI can manage Workers and D1, but the browser is not signed in to your Cloudflare dashboard. The production dashboard stays locked until Access is configured. After creating the Access app, provide its team domain and AUD tag (neither is a password) so the Worker can validate the email login.
+
+## Daily, weekly, and monthly play time
+
+Time is split into day buckets using **Asia/Kolkata (India time)**, including midnight crossings. After selecting a player, the dashboard shows their daily/weekly/monthly play time, most active date, and average play time per day/week/month for the selected range. Expand the three breakdown sections for date-level values. Weeks start Monday. Averages include zero-play days and all calendar weeks/months touched by the range; the first/last week or month may be partial. Daily history starts with this release and cannot be reconstructed from older total-only summaries.
+
+Each game has separate cumulative daily snapshots. Repeated/offline uploads update the maximum recorded daily time instead of adding it again. Offline snapshots sync when online, and only changed days are written. The client retains up to the most recent 366 tracked days per puzzle for sync; previously synced older days stay in D1.

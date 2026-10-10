@@ -32,7 +32,23 @@ export function validPlay(p, now = Date.now()) {
     integer(p.moves, 0, 1000000) &&
     integer(p.filled, 0, 81) &&
     integer(p.revision, 1, Number.MAX_SAFE_INTEGER) &&
-    typeof p.playing === "boolean"
+    typeof p.playing === "boolean" &&
+    (p.days === undefined ||
+      (Array.isArray(p.days) &&
+        p.days.length <= 366 &&
+        new Set(p.days.map((d) => d?.day)).size === p.days.length &&
+        p.days.every(
+          (d) =>
+            d &&
+            /^\d{4}-\d{2}-\d{2}$/.test(d.day) &&
+            Number.isFinite(Date.parse(d.day + "T00:00:00Z")) &&
+            new Date(Date.parse(d.day + "T00:00:00Z"))
+              .toISOString()
+              .slice(0, 10) === d.day &&
+            d.day <= new Date(now + 19800000).toISOString().slice(0, 10) &&
+            integer(d.activeMs, 0, 86400000),
+        ) &&
+        p.days.reduce((sum, d) => sum + d.activeMs, 0) <= p.activeMs))
   );
 }
 async function tokenHash(token) {
@@ -73,6 +89,7 @@ export async function handleMetrics(request, env, assets) {
         return metricsJson({ error: "Invalid play summary" }, 400);
       const statements = [];
       for (const p of data.plays) {
+        const hash = await tokenHash(p.token);
         statements.push(
           env.DB.prepare(
             `INSERT INTO plays
@@ -89,7 +106,7 @@ export async function handleMetrics(request, env, assets) {
           WHERE plays.token_hash=excluded.token_hash AND plays.player_id=excluded.player_id AND excluded.revision>plays.revision`,
           ).bind(
             p.id,
-            await tokenHash(p.token),
+            hash,
             p.playerId,
             p.nickname.trim(),
             p.difficulty,
@@ -105,6 +122,23 @@ export async function handleMetrics(request, env, assets) {
             p.lastPlayedAt,
           ),
         );
+        if (p.days?.length)
+          statements.push(
+            env.DB.prepare(
+              `INSERT INTO play_days (play_id,player_id,day,active_ms)
+          SELECT ?,?,json_extract(value,'$.day'),json_extract(value,'$.activeMs') FROM json_each(?)
+          WHERE EXISTS(SELECT 1 FROM plays WHERE id=? AND token_hash=? AND player_id=? AND revision=?)
+          ON CONFLICT(play_id,day) DO UPDATE SET active_ms=MAX(play_days.active_ms,excluded.active_ms)`,
+            ).bind(
+              p.id,
+              p.playerId,
+              JSON.stringify(p.days),
+              p.id,
+              hash,
+              p.playerId,
+              p.revision,
+            ),
+          );
       }
       await env.DB.batch(statements);
       return metricsJson({ ok: true });
@@ -164,6 +198,17 @@ export async function handleMetrics(request, env, assets) {
           active_ms, auto_used, moves, filled FROM plays WHERE ${scope} ORDER BY started_at DESC LIMIT 100`,
         ).bind(...args),
       ];
+      const today = new Date(now + 19800000).toISOString().slice(0, 10);
+      const firstDay = new Date(
+        Date.parse(today + "T00:00:00Z") - (days - 1) * 86400000,
+      )
+        .toISOString()
+        .slice(0, 10);
+      queries.push(
+        env.DB.prepare(
+          `SELECT day,SUM(active_ms) AS activeMs FROM play_days WHERE day>=? AND day<=? ${player ? "AND player_id=?" : ""} GROUP BY day ORDER BY day`,
+        ).bind(...(player ? [firstDay, today, player] : [firstDay, today])),
+      );
       const results = await env.DB.batch(queries);
       return metricsJson({
         now,
@@ -174,6 +219,8 @@ export async function handleMetrics(request, env, assets) {
         presence: results[2].results,
         players: results[3].results,
         recent: results[4].results,
+        daily: results[5].results,
+        timezone: "Asia/Kolkata",
       });
     } catch {
       return metricsJson({ error: "Stats temporarily unavailable" }, 503);
