@@ -1,3 +1,4 @@
+import { handleMetrics } from "./metrics.mjs";
 const difficulties = new Set(["easy", "medium", "hard"]);
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -9,6 +10,8 @@ const json = (body, status = 200) =>
   });
 export async function handleRequest(request, env, assets) {
   const url = new URL(request.url);
+  if (url.pathname === "/api/metrics" || url.pathname === "/admin.html" || url.pathname === "/admin" || url.pathname.startsWith("/admin/"))
+    return handleMetrics(request, env, assets);
   if (url.pathname === "/api/puzzle") {
     if (request.method !== "GET")
       return json({ error: "Method not allowed" }, 405);

@@ -1,7 +1,10 @@
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig({
-  build: { outDir: "dist/client" },
+  build: {
+    outDir: "dist/client",
+    rollupOptions: { input: { app: "index.html", admin: "admin.html" } },
+  },
   server: { proxy: { "/api": "http://127.0.0.1:8787" } },
   plugins: [
     VitePWA({
@@ -28,6 +31,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,webmanifest}"],
+        globIgnores: ["admin.html", "assets/admin-*.js", "assets/admin-*.css"],
+        navigateFallbackDenylist: [/^\/admin(?:[/.]|$)/, /^\/api\//],
         navigateFallback: "/index.html",
       },
     }),

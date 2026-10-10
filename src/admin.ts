@@ -1,0 +1,233 @@
+import "./admin.css";
+type Row = Record<string, string | number | null>;
+type Stats = {
+  now: number;
+  days: number;
+  localPreview: boolean;
+  totals: Row;
+  difficulties: Row[];
+  presence: Row[];
+  players: Row[];
+  recent: Row[];
+};
+const app = document.querySelector<HTMLDivElement>("#admin-app")!;
+app.innerHTML = `<main><header><div><a href="/">♡ SansDoku</a><h1>Your little stats room</h1><p id="admin-auth">Private dashboard</p></div><a href="/cdn-cgi/access/logout">Sign out</a></header><div class="filters"><label>Show <select id="range"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option></select></label><button id="all" hidden>← All players</button><button id="refresh">Refresh</button><span id="status" role="status">Loading…</span></div><h2 id="scope">All players</h2><section id="totals" class="cards"></section><section><h2><span class="live-dot"></span> Playing now</h2><p class="hint">Online heartbeats · updates every 30 seconds · expires after 90 seconds. Nicknames are self-selected.</p><div id="presence"></div></section><section><h2>By difficulty</h2><div id="difficulties" class="table-wrap"></div></section><section><h2>Players</h2><p class="hint">Select a nickname for individual stats. Different devices count separately.</p><div id="players" class="table-wrap"></div></section><section><h2>Recent games</h2><p class="hint">Most recent 100 games in the selected period. Times count active play; hidden and idle time is paused.</p><div id="recent" class="table-wrap"></div></section></main>`;
+const range = document.querySelector<HTMLSelectElement>("#range")!;
+let player = "";
+let playerName = "";
+let loading = false;
+const text = (value: unknown) => String(value ?? "");
+function duration(value: unknown) {
+  if (value === null || value === undefined) return "—";
+  const s = Math.floor(Number(value) / 1000);
+  return s >= 3600
+    ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`
+    : `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+function date(value: unknown) {
+  return value ? new Date(Number(value)).toLocaleString() : "—";
+}
+function rate(row: Row) {
+  return row.started
+    ? `${Math.round((Number(row.completed) / Number(row.started)) * 100)}%`
+    : "—";
+}
+function table(id: string, headings: string[], rows: (string | Node)[][]) {
+  const target = document.querySelector(id)!;
+  target.replaceChildren();
+  if (!rows.length) {
+    const p = document.createElement("p");
+    p.textContent = "No games yet in this period.";
+    target.append(p);
+    return;
+  }
+  const t = document.createElement("table"),
+    head = document.createElement("thead"),
+    tr = document.createElement("tr");
+  headings.forEach((h) => {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.textContent = h;
+    tr.append(th);
+  });
+  head.append(tr);
+  t.append(head);
+  const body = document.createElement("tbody");
+  rows.forEach((row) => {
+    const tr = document.createElement("tr");
+    row.forEach((value) => {
+      const td = document.createElement("td");
+      if (typeof value === "string") td.textContent = value;
+      else td.append(value);
+      tr.append(td);
+    });
+    body.append(tr);
+  });
+  t.append(body);
+  target.append(t);
+}
+function playerButton(row: Row) {
+  const b = document.createElement("button");
+  b.className = "player-link";
+  b.textContent = text(row.nickname);
+  b.onclick = () => {
+    player = text(row.player_id);
+    playerName = text(row.nickname);
+    void refresh();
+  };
+  return b;
+}
+async function refresh() {
+  if (loading || document.hidden) return;
+  loading = true;
+  document.querySelector("#status")!.textContent = "Updating…";
+  try {
+    const q = new URLSearchParams({ days: range.value });
+    if (player) q.set("player", player);
+    const response = await fetch(`/admin/api/stats?${q}`, {
+      cache: "no-store",
+      redirect: "error",
+    });
+    if (response.status === 401)
+      throw new Error(
+        "Session expired. Reload to sign in with your email code.",
+      );
+    if (!response.ok)
+      throw new Error(
+        "Stats unavailable. Check database and Access setup, then retry.",
+      );
+    const data: Stats = await response.json();
+    document.querySelector("#admin-auth")!.textContent = data.localPreview
+      ? "Local preview · production requires email sign-in"
+      : "Private · signed in with Cloudflare Access";
+    document.querySelector("#scope")!.textContent = player
+      ? `Stats for ${playerName}`
+      : "All players";
+    (document.querySelector("#all") as HTMLButtonElement).hidden = !player;
+    const cards = document.querySelector("#totals")!;
+    cards.replaceChildren();
+    for (const [label, value] of [
+      ["Games started", data.totals.started],
+      ["Completed", data.totals.completed],
+      ["Completion rate", rate(data.totals)],
+      ["Players", data.totals.players],
+      ["Total play time", duration(data.totals.active_ms)],
+      ["Average solve", duration(data.totals.average_ms)],
+    ]) {
+      const card = document.createElement("div");
+      card.className = "card";
+      const p = document.createElement("p");
+      p.textContent = text(label);
+      const strong = document.createElement("strong");
+      strong.textContent = text(value);
+      card.append(p, strong);
+      cards.append(card);
+    }
+    // A player may have multiple active tabs; show their newest heartbeat once.
+    const live = Array.from(
+      new Map(
+        data.presence
+          .slice()
+          .reverse()
+          .map((p) => [p.player_id, p]),
+      ).values(),
+    );
+    table(
+      "#presence",
+      ["Nickname", "Difficulty", "Progress", "Play time"],
+      live.map((p) => [
+        playerButton(p),
+        text(p.difficulty),
+        `${p.filled}/81`,
+        duration(p.active_ms),
+      ]),
+    );
+    if (!live.length)
+      document.querySelector("#presence p")!.textContent =
+        "Nobody is playing online right now.";
+    table(
+      "#difficulties",
+      [
+        "Difficulty",
+        "Started",
+        "Completed",
+        "Completion",
+        "Average solve",
+        "Best solve",
+      ],
+      data.difficulties.map((d) => [
+        text(d.difficulty),
+        text(d.started),
+        text(d.completed),
+        rate(d),
+        duration(d.average_ms),
+        duration(d.best_ms),
+      ]),
+    );
+    table(
+      "#players",
+      [
+        "Nickname",
+        "Player ID",
+        "Started",
+        "Completed",
+        "Completion",
+        "Total time",
+        "Average solve",
+        "Best solve",
+        "Last played",
+      ],
+      data.players.map((p) => [
+        playerButton(p),
+        text(p.player_id).slice(0, 8),
+        text(p.started),
+        text(p.completed),
+        rate(p),
+        duration(p.active_ms),
+        duration(p.average_ms),
+        duration(p.best_ms),
+        date(p.last_played),
+      ]),
+    );
+    table(
+      "#recent",
+      [
+        "Player",
+        "Difficulty",
+        "Started",
+        "Status",
+        "Play time",
+        "Auto notes",
+        "Actions",
+      ],
+      data.recent.map((p) => [
+        playerButton(p),
+        text(p.difficulty),
+        date(p.started_at),
+        p.completed_at ? "Completed" : "In progress",
+        duration(p.active_ms),
+        p.auto_used ? "Used" : "No",
+        text(p.moves),
+      ]),
+    );
+    document.querySelector("#status")!.textContent =
+      `Updated ${new Date(data.now).toLocaleTimeString()}`;
+  } catch (e) {
+    document.querySelector("#status")!.textContent =
+      e instanceof Error ? e.message : "Unable to load stats.";
+  } finally {
+    loading = false;
+  }
+}
+range.onchange = () => void refresh();
+document.querySelector<HTMLButtonElement>("#refresh")!.onclick = () =>
+  void refresh();
+document.querySelector<HTMLButtonElement>("#all")!.onclick = () => {
+  player = "";
+  void refresh();
+};
+setInterval(() => void refresh(), 30000);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) void refresh();
+});
+void refresh();

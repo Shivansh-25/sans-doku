@@ -68,3 +68,7 @@ The Sites identity is recorded in `.openai/hosting.json`. Its initial deployment
 ## Validation
 
 `npm test` covers Sudoku rules, candidate notes, undo, save-format validation, imported puzzle uniqueness, and proxy credential/error handling. Browser checks cover mobile layout, saved progress, themes, live requests, and reloading the cached app with the local server stopped. Physical iPhone testing is still needed for Safari installation and touch behaviour.
+
+## Player metrics
+
+Optional nicknames, device-level player stats, active play time, offline metric sync, and a private admin dashboard with live online presence. Sans mode is available only for the nickname `sans` (case insensitive). See [setup, cost, and admin access](docs/metrics.md).

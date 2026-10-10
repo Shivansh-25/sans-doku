@@ -31,7 +31,15 @@ async function collect(dir) {
 await collect("dist/client");
 await mkdir("dist/server", { recursive: true });
 await mkdir("dist/.openai", { recursive: true });
-const handler = await readFile("worker/handler.mjs", "utf8");
+const handler = (
+  await Promise.all(
+    ["access", "metrics", "handler"].map((name) =>
+      readFile(`worker/${name}.mjs`, "utf8"),
+    ),
+  )
+)
+  .map((source) => source.replace(/^import .* from ['"].*\.mjs['"];?\n/gm, ""))
+  .join("\n");
 await writeFile(
   "dist/server/index.js",
   `${handler}\nconst assets = ${JSON.stringify(assets)};\nexport default { fetch(request, env) { return handleRequest(request, env, assets); } };\n`,

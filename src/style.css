@@ -590,3 +590,14 @@ summary {
 @media (prefers-reduced-motion: reduce) {
   .heart-confetti { display: none; }
 }
+
+[hidden] { display: none !important; }
+.player-settings { margin-bottom: 20px; }
+.metrics-notice { font-size: 11px; line-height: 1.6; }
+#nickname-form label { display: block; font-size: 12px; margin-bottom: 8px; }
+#nickname-input {
+  width: 100%; padding: 12px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--page); color: var(--ink);
+  font: inherit; font-size: 16px;
+}
+#nickname-input:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }

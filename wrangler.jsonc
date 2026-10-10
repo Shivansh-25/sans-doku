@@ -1,5 +1,14 @@
 {
   "name": "sansdoku",
   "main": "dist/server/index.js",
-  "compatibility_date": "2026-10-10"
+  "compatibility_date": "2026-10-10",
+  "vars": { "ADMIN_EMAIL": "shivsrijan25@gmail.com" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sansdoku-metrics",
+      "database_id": "b0cd7b89-a4ea-43d9-91f3-1daf4f1c31fa",
+      "migrations_dir": "migrations",
+    },
+  ],
 }
