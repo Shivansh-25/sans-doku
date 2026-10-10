@@ -469,3 +469,8 @@ summary {
     margin-top: 16px;
   }
 }
+
+.tools button[data-auto-candidates="true"] {
+  color: var(--sage);
+  background: var(--matching);
+}

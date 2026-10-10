@@ -27,7 +27,7 @@ The development server does not enable the service worker. Test offline support 
 
 - Easy, medium, hard; one saved game per difficulty.
 - Pencil notes, undo, erase, conflict highlighting, completion detection.
-- Long-press Notes to fill legal candidates; the same action is under Settings → A little shortcut. Candidate filling replaces existing notes and can be undone.
+- Long-press Notes to toggle automatic candidates; the same action is under Settings → A little shortcut. While enabled, candidates update with the board. Turning it off restores your manual notes; writing a manual note also exits automatic mode. The mode is saved per puzzle and toggles can be undone.
 - Keyboard: arrows select cells, 1–9 enter, N toggles notes, Delete erases.
 - Fresh API puzzles online; a reserve of up to 3 puzzles per difficulty on this device for offline use. A bundled bank remains as a fallback when that reserve is empty.
 - Light, Dark, and System appearance, remembered on this device.

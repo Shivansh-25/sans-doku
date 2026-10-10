@@ -9,6 +9,9 @@ import {
   enter,
   undo,
   fillCandidates,
+  gameFromPuzzle,
+  toggleAutoCandidates,
+  visibleNotes,
   completed,
   validGame,
   type Difficulty,
@@ -73,4 +76,40 @@ test("saved game round trip and malformed records", () => {
   assert.equal(validGame({ ...g, values: [1] }, "hard"), false);
   assert.equal(validGame(g, "easy"), false);
   assert.equal(validGame({ ...g, history: [{}] }, "hard"), false);
+});
+
+test("automatic candidates toggle, follow entries, and preserve manual notes", () => {
+  const g = gameFromPuzzle("easy", seeds.easy);
+  enter(g, 2, 9, true);
+  assert.deepEqual(g.notes[2], [9]);
+  toggleAutoCandidates(g);
+  assert.deepEqual(visibleNotes(g, 2), [1, 2, 4]);
+  enter(g, 3, 1);
+  assert.deepEqual(visibleNotes(g, 2), [2, 4]);
+  toggleAutoCandidates(g);
+  assert.deepEqual(visibleNotes(g, 2), [9]);
+  undo(g);
+  assert.equal(g.autoCandidates, true);
+  assert.deepEqual(visibleNotes(g, 2), [2, 4]);
+  const saved = JSON.parse(JSON.stringify(g));
+  assert.ok(validGame(saved, "easy"));
+  assert.equal(saved.autoCandidates, true);
+});
+
+test("manual note entry exits automatic mode and undo restores it", () => {
+  const g = gameFromPuzzle("easy", seeds.easy);
+  toggleAutoCandidates(g);
+  enter(g, 2, 4, true);
+  assert.equal(g.autoCandidates, false);
+  assert.deepEqual(visibleNotes(g, 2), [4]);
+  undo(g);
+  assert.equal(g.autoCandidates, true);
+  assert.deepEqual(g.notes[2], []);
+});
+
+test("old saved games remain valid and invalid automatic modes are rejected", () => {
+  const g = gameFromPuzzle("easy", seeds.easy);
+  delete g.autoCandidates;
+  assert.ok(validGame(g, "easy"));
+  assert.equal(validGame({ ...g, autoCandidates: "yes" }, "easy"), false);
 });

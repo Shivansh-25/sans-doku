@@ -1,6 +1,10 @@
 import puzzleBank from "./puzzles.json";
 export type Difficulty = "easy" | "medium" | "hard";
-export type Snapshot = { values: number[]; notes: number[][] };
+export type Snapshot = {
+  values: number[];
+  notes: number[][];
+  autoCandidates?: boolean;
+};
 export type Game = Snapshot & {
   version: 1;
   difficulty: Difficulty;
@@ -94,6 +98,7 @@ export function gameFromPuzzle(difficulty: Difficulty, puzzle: string): Game {
     givens,
     values: givens.slice(),
     notes: Array.from({ length: 81 }, () => []),
+    autoCandidates: false,
     history: [],
     startedAt: Date.now(),
   };
@@ -102,6 +107,7 @@ function remember(game: Game) {
   game.history.push({
     values: game.values.slice(),
     notes: game.notes.map((n) => n.slice()),
+    autoCandidates: Boolean(game.autoCandidates),
   });
   if (game.history.length > 100) game.history.shift();
 }
@@ -115,6 +121,7 @@ export function enter(
   if (noteMode) {
     if (game.values[index] || !n) return false;
     remember(game);
+    game.autoCandidates = false;
     const notes = game.notes[index];
     game.notes[index] = notes.includes(n)
       ? notes.filter((v) => v !== n)
@@ -132,11 +139,23 @@ export function fillCandidates(game: Game) {
   remember(game);
   game.notes = game.values.map((_, i) => candidates(game.values, i));
 }
+export function toggleAutoCandidates(game: Game): boolean {
+  if (completed(game.values) && !game.autoCandidates) return false;
+  remember(game);
+  game.autoCandidates = !game.autoCandidates;
+  return true;
+}
+export function visibleNotes(game: Game, index: number): number[] {
+  return game.autoCandidates
+    ? candidates(game.values, index)
+    : game.notes[index];
+}
 export function undo(game: Game) {
   const previous = game.history.pop();
   if (previous) {
     game.values = previous.values;
     game.notes = previous.notes;
+    game.autoCandidates = Boolean(previous.autoCandidates);
   }
 }
 export function validGame(
@@ -166,6 +185,7 @@ export function validGame(
     board(g.values) &&
     g.givens.every((n, i) => !n || g.values[i] === n) &&
     notes(g.notes) &&
+    (g.autoCandidates === undefined || typeof g.autoCandidates === "boolean") &&
     Number.isFinite(g.startedAt) &&
     Array.isArray(g.history) &&
     g.history.length <= 100 &&
@@ -173,6 +193,8 @@ export function validGame(
       (s) =>
         board(s.values) &&
         notes(s.notes) &&
+        (s.autoCandidates === undefined ||
+          typeof s.autoCandidates === "boolean") &&
         g.givens.every((n, i) => !n || s.values[i] === n),
     )
   );
