@@ -154,79 +154,8 @@ test("admin HTML and stats reject anonymous access and production local flags", 
       { LOCAL_ADMIN: "1" },
       {},
     );
-    assert.equal(r.status, 401);
+    assert.equal(r.status, path === "/admin/api/stats" ? 401 : 303);
     assert.equal(r.headers.get("Cache-Control"), "no-store");
-  }
-});
-
-test("Access requires a valid signed token for the correct email, audience and expiry", async () => {
-  const { isAdmin } = await import("../worker/access.mjs");
-  const pair = await crypto.subtle.generateKey(
-    {
-      name: "RSASSA-PKCS1-v1_5",
-      modulusLength: 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
-      hash: "SHA-256",
-    },
-    true,
-    ["sign", "verify"],
-  );
-  const jwk = await crypto.subtle.exportKey("jwk", pair.publicKey);
-  jwk.kid = "test-key";
-  const previous = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({ keys: [jwk] });
-  const env = {
-    ACCESS_TEAM_DOMAIN: "sansdoku-test.cloudflareaccess.com",
-    ACCESS_AUD: "app-audience",
-    ADMIN_EMAIL: "admin@example.test",
-  };
-  const encode = (value: unknown) =>
-    Buffer.from(JSON.stringify(value)).toString("base64url");
-  const claims = {
-    iss: "https://sansdoku-test.cloudflareaccess.com",
-    aud: ["app-audience"],
-    email: "admin@example.test",
-    iat: Math.floor(Date.now() / 1000),
-    exp: Math.floor(Date.now() / 1000) + 3600,
-  };
-  const sign = async (overrides = {}) => {
-    const body =
-      encode({ alg: "RS256", kid: "test-key" }) +
-      "." +
-      encode({ ...claims, ...overrides });
-    const signature = await crypto.subtle.sign(
-      "RSASSA-PKCS1-v1_5",
-      pair.privateKey,
-      new TextEncoder().encode(body),
-    );
-    return body + "." + Buffer.from(signature).toString("base64url");
-  };
-  const request = (token: string) =>
-    new Request("https://sansdoku.test/admin", {
-      headers: { "Cf-Access-Jwt-Assertion": token },
-    });
-  try {
-    assert.equal(await isAdmin(request(await sign()), env), true);
-    for (const override of [
-      { email: "other@example.test" },
-      { aud: ["another-app"] },
-      { exp: 1 },
-      { iss: "https://evil.test" },
-    ]) {
-      assert.equal(await isAdmin(request(await sign(override)), env), false);
-    }
-    const token = await sign();
-    const parts = token.split(".");
-    parts[1] = encode({
-      ...claims,
-      email: "admin@example.test",
-      exp: claims.exp + 10000,
-    });
-    assert.equal(await isAdmin(request(parts.join(".")), env), false);
-    assert.equal(await isAdmin(request("fake-token"), env), false);
-    assert.equal(await isAdmin(request(token), {}), false);
-  } finally {
-    globalThis.fetch = previous;
   }
 });
 

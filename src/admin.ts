@@ -14,7 +14,7 @@ type Stats = {
   timezone: string;
 };
 const app = document.querySelector<HTMLDivElement>("#admin-app")!;
-app.innerHTML = `<main><header><div><a href="/">♡ SansDoku</a><h1>Your little stats room</h1><p id="admin-auth">Private dashboard</p></div><a href="/cdn-cgi/access/logout">Sign out</a></header><div class="filters"><label>Show <select id="range"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option></select></label><button id="all" hidden>← All players</button><button id="refresh">Refresh</button><span id="status" role="status">Loading…</span></div><h2 id="scope">All players</h2><section id="totals" class="cards"></section><section><h2>Play time over time</h2><p class="hint">India time (Asia/Kolkata). Weeks start Monday. Averages include quiet days and the calendar weeks/months touched by this date range; edge periods may be partial. Daily history starts with this update.</p><div id="activity-cards" class="cards"></div><details><summary>Daily play time</summary><div id="daily-time" class="table-wrap"></div></details><details><summary>Weekly play time</summary><div id="weekly-time" class="table-wrap"></div></details><details><summary>Monthly play time</summary><div id="monthly-time" class="table-wrap"></div></details></section><section><h2><span class="live-dot"></span> Playing now</h2><p class="hint">Online heartbeats · updates every 30 seconds · expires after 90 seconds. Nicknames are self-selected.</p><div id="presence"></div></section><section><h2>By difficulty</h2><div id="difficulties" class="table-wrap"></div></section><section><h2>Players</h2><p class="hint">Select a nickname for individual stats. Different devices count separately.</p><div id="players" class="table-wrap"></div></section><section><h2>Recent games</h2><p class="hint">Most recent 100 games in the selected period. Times count active play; hidden and idle time is paused.</p><div id="recent" class="table-wrap"></div></section></main>`;
+app.innerHTML = `<main><header><div><a href="/">♡ SansDoku</a><h1>Your little stats room</h1><p id="admin-auth">Private dashboard</p></div><form method="post" action="/admin/logout"><button>Sign out</button></form></header><div class="filters"><label>Show <select id="range"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="365">Last year</option></select></label><button id="all" hidden>← All players</button><button id="refresh">Refresh</button><span id="status" role="status">Loading…</span></div><h2 id="scope">All players</h2><section id="totals" class="cards"></section><section><h2>Play time over time</h2><p class="hint">India time (Asia/Kolkata). Weeks start Monday. Averages include quiet days and the calendar weeks/months touched by this date range; edge periods may be partial. Daily history starts with this update.</p><div id="activity-cards" class="cards"></div><details><summary>Daily play time</summary><div id="daily-time" class="table-wrap"></div></details><details><summary>Weekly play time</summary><div id="weekly-time" class="table-wrap"></div></details><details><summary>Monthly play time</summary><div id="monthly-time" class="table-wrap"></div></details></section><section><h2><span class="live-dot"></span> Playing now</h2><p class="hint">Online heartbeats · updates every 30 seconds · expires after 90 seconds. Nicknames are self-selected.</p><div id="presence"></div></section><section><h2>By difficulty</h2><div id="difficulties" class="table-wrap"></div></section><section><h2>Players</h2><p class="hint">Select a nickname for individual stats. Different devices count separately.</p><div id="players" class="table-wrap"></div></section><section><h2>Recent games</h2><p class="hint">Most recent 100 games in the selected period. Times count active play; hidden and idle time is paused.</p><div id="recent" class="table-wrap"></div></section></main>`;
 const range = document.querySelector<HTMLSelectElement>("#range")!;
 let player = "";
 let playerName = "";
@@ -93,17 +93,13 @@ async function refresh() {
       redirect: "error",
     });
     if (response.status === 401)
-      throw new Error(
-        "Session expired. Reload to sign in with your email code.",
-      );
+      throw new Error("Session expired. Reload to sign in again.");
     if (!response.ok)
-      throw new Error(
-        "Stats unavailable. Check database and Access setup, then retry.",
-      );
+      throw new Error("Stats unavailable. Check database setup, then retry.");
     const data: Stats = await response.json();
     document.querySelector("#admin-auth")!.textContent = data.localPreview
-      ? "Local preview · production requires email sign-in"
-      : "Private · signed in with Cloudflare Access";
+      ? "Local preview · production requires password sign-in"
+      : "Private · signed in as admin";
     document.querySelector("#scope")!.textContent = player
       ? `Stats for ${playerName}`
       : "All players";

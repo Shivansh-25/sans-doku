@@ -11,7 +11,7 @@ A random device ID distinguishes players; nicknames are self-selected, not verif
 - Active time resumes across visits. It pauses when the page is hidden or after 60 seconds without a board interaction. Time before the first action is excluded. Completion is recorded once even if it is undone afterwards.
 - Online presence sends a summary at most once per 30 seconds during active play. Closing/hiding/pausing sends a best-effort final update. A heartbeat older than 90 seconds is no longer considered live. Players who are offline cannot appear live.
 - Offline summaries are queued on the device and retried online. Game IDs, revisions, and private per-game write tokens make retries idempotent and prevent other callers from overwriting a game by ID alone. Stats are self-reported game telemetry, not a verified competitive leaderboard.
-- No emails, IP addresses, full Sudoku boards, or individual move histories are stored in the metrics database. Email is used only for the owner's admin authentication.
+- No emails, raw IP addresses, full Sudoku boards, or individual move histories are stored in the metrics database. Email is used only for the owner's admin authentication. The login limiter temporarily stores a keyed IP hash, separate from game metrics.
 
 The private dashboard shows totals, per-difficulty averages/best times, recent games, live nicknames, and per-player stats. Click a player's nickname to filter to their games. Counts and averages use the selected 7/30/90/365-day window; recent games and player lists show up to 100 rows. Presence is always current regardless of the selected reporting period.
 
@@ -25,13 +25,13 @@ npm run build
 npm run preview
 ```
 
-Open http://127.0.0.1:4173 and http://127.0.0.1:4173/admin. If that port is occupied, run `PORT=4175 npm run preview` instead. Local preview stores metrics in `.wrangler/local-preview/metrics.sqlite`, which is ignored by Git. It explicitly bypasses admin login **only on localhost**, so local testing doesn't need an email code. This bypass is not configured in the deployed Worker.
+Open http://127.0.0.1:4173 and http://127.0.0.1:4173/admin. If that port is occupied, run `PORT=4175 npm run preview` instead. Local preview stores metrics in `.wrangler/local-preview/metrics.sqlite`, which is ignored by Git. It explicitly bypasses admin login **only on localhost**, so local testing doesn't need a password. This bypass is not configured in the deployed Worker.
 
 For hot reload: build once, run `npm run dev:api` in one terminal and `npm run dev` in another. The Vite app sends metrics through its API proxy. Open the dashboard on the API server at http://127.0.0.1:8787/admin.
 
 ## Production database
 
-The free D1 database `sansdoku-metrics` has been created and migration `0001_metrics.sql` applied. Wrangler's `DB` binding points to it. This does not deploy changes to the live app.
+The free D1 database `sansdoku-metrics` has been created and migrations through `0003_admin_login.sql` applied. Wrangler's `DB` binding points to it. The live Worker is bound to this database.
 
 Future migrations:
 
@@ -39,29 +39,23 @@ Future migrations:
 npx wrangler d1 migrations apply sansdoku-metrics --remote
 ```
 
-## Configure Cloudflare Access before deploying
+## Configure the admin password
 
-Admin identity: **shivsrijan25@gmail.com**. There is no separate admin ID or password. Cloudflare sends a one-time code to this allowed email.
+Admin email: **shivsrijan25@gmail.com**. The dashboard uses a simple server-side email/password login. Cloudflare Zero Trust and email codes are no longer needed.
 
-1. Open Cloudflare Zero Trust → Access controls → Applications → Add an application → Self-hosted.
-2. Name it `SansDoku admin`. Add public-hostname entries for `sansdoku.shivsrijan25.workers.dev` with paths `admin` and `admin/*`, plus `admin.html` (the alternate HTML URL). Protect **only these paths**. A Worker-wide Access switch would also lock players out of the game.
-3. Set the application session duration to **7 days**. Use an Allow policy including only the email `shivsrijan25@gmail.com`, and set its duration to 7 days too. Enable One-time PIN as its login method. Do not add a Bypass policy.
-4. Copy the application's **AUD tag** and your Zero Trust team domain, e.g. `your-team.cloudflareaccess.com`.
-5. Add these non-secret settings to `wrangler.jsonc` under `vars`:
+Choose a password of **12–256 characters** and run this in the repository:
 
-```json
-{
-  "ADMIN_EMAIL": "shivsrijan25@gmail.com",
-  "ACCESS_TEAM_DOMAIN": "your-team.cloudflareaccess.com",
-  "ACCESS_AUD": "your-application-aud-tag"
-}
+```sh
+npx wrangler secret put ADMIN_PASSWORD
 ```
 
-6. Build and deploy the reviewed changes. Open https://sansdoku.shivsrijan25.workers.dev/admin, enter your email, then its code. You stay signed in for the configured session, subject to Cloudflare's session/policy settings. Use Sign out to end it early.
+Wrangler prompts for the password privately. Do not put it in chat, source files, `wrangler.jsonc`, or a `VITE_` variable. It is saved as a Cloudflare Worker secret and is never shipped to the browser. The existing `ADMIN_EMAIL` setting identifies the only admin account.
 
-The Worker independently verifies the Access JWT signature, issuer, audience, expiry, and allowed email before serving the dashboard HTML or metrics. Without correct Access settings or a valid token, production admin endpoints stay locked. The service worker excludes admin navigation and admin assets from offline caching. Never deploy `LOCAL_ADMIN=1` as an environment variable.
+Open https://sansdoku.shivsrijan25.workers.dev/admin and sign in with that email and your chosen password. A signed Secure, HttpOnly, SameSite cookie keeps you signed in for seven days. Sign out clears this browser's cookie. Changing the password with the same command invalidates existing sessions everywhere; an already copied session remains valid until expiry or a password change. There is no registration or password-reset email flow.
 
-References: [Access applications](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/), [session durations](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/), [JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/).
+Login attempts are limited to 10 per IP address per 15-minute fixed window. Only a keyed hash of the address is stored temporarily in D1 for the limiter. Metrics do not record IP addresses. Admin HTML and API responses are never cached. Local preview continues to bypass login **only on localhost**. Never deploy `LOCAL_ADMIN=1`.
+
+If you previously created a Cloudflare Access application protecting these paths, remove it so the new login can be reached.
 
 ## Cost and expected usage
 
@@ -75,7 +69,7 @@ Sources: [D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) an
 
 ## Current setup status
 
-The database exists. Production Access configuration is still pending: the connected CLI can manage Workers and D1, but the browser is not signed in to your Cloudflare dashboard. The production dashboard stays locked until Access is configured. After creating the Access app, provide its team domain and AUD tag (neither is a password) so the Worker can validate the email login.
+The database and dashboard are deployed. Set the `ADMIN_PASSWORD` Worker secret with the command above to enable production sign-in. Until that is set, the login page explains that password setup is pending and private stats stay locked.
 
 ## Daily, weekly, and monthly play time
 

@@ -1,4 +1,4 @@
-import { isAdmin } from "./access.mjs";
+import { isAdmin, handleAdminAuth, adminLoginRedirect } from "./access.mjs";
 const metricsJson = (data, status = 200) =>
   new Response(JSON.stringify(data), {
     status,
@@ -146,8 +146,16 @@ export async function handleMetrics(request, env, assets) {
       return metricsJson({ error: "Metrics temporarily unavailable" }, 503);
     }
   }
-  if (!(await isAdmin(request, env)))
+  const authentication = await handleAdminAuth(request, env);
+  if (authentication) return authentication;
+  if (!(await isAdmin(request, env))) {
+    if (
+      ["/admin", "/admin/", "/admin.html"].includes(url.pathname) &&
+      request.method === "GET"
+    )
+      return adminLoginRedirect();
     return metricsJson({ error: "Admin sign-in required" }, 401);
+  }
   if (url.pathname === "/admin/api/stats") {
     if (request.method !== "GET")
       return metricsJson({ error: "Method not allowed" }, 405);
