@@ -39,6 +39,7 @@ The development server does not enable the service worker. Test offline support 
 - Polish: Apple home-screen tags, a guided "Add to Home Screen" card (iPhone/iPad Safari, until installed), "Start this puzzle over" (undoable), optional auto-advance, and a soft finish chime (on by default; follows the iPhone silent switch). Helpers live in Settings.
 - Sans mode extras: a time-of-day greeting, a "days together" line (since 22 Nov 2025), notes you write from the admin page that appear once on her next open, and milestone notes (first puzzle, 10, 50, 100, a 7-day streak, first hard puzzle) kept under Stats → Little notes. Milestone wording can be replaced in the admin page; see [docs](docs/metrics.md).
 - An optional `admin` test sign-in (own secret, separate stats) so the owner can test without touching her record.
+- Garden on the stats page: one flower per finished puzzle (daisy for easy, tulip for medium, rose for hard), newest last; tap a flower for its date and time. Shows the latest 96.
 - Keyboard: arrows select cells, 1–9 enter, N toggles notes, Delete erases.
 - Fresh API puzzles online; a reserve of up to 3 puzzles per difficulty on this device for offline use. A bundled bank remains as a fallback when that reserve is empty.
 - Light, Dark, and System appearance, remembered on this device.

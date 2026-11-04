@@ -58,8 +58,8 @@ function timeChart(finishes: Finish[], d: Difficulty): string {
     .join("");
   const first = games[0].at,
     last = games[games.length - 1].at;
-  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="${name(d)} solve times, oldest to newest, from ${formatTime(games[0].ms)} to ${formatTime(games[games.length - 1].ms)}">${grid}<path d="${line}" class="line"/>${dots}<text x="${L}" y="${H - 5}" class="axis">${dateText(first)}</text><text x="${W - R}" y="${H - 5}" text-anchor="end" class="axis">${dateText(last)}</text></svg>
-<p class="chart-readout" data-readout-target aria-live="polite">Tap a dot for details. Lower is faster.</p>`;
+  return `<div class="chart-box"><svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="${name(d)} solve times, oldest to newest, from ${formatTime(games[0].ms)} to ${formatTime(games[games.length - 1].ms)}">${grid}<path d="${line}" class="line"/>${dots}<text x="${L}" y="${H - 5}" class="axis">${dateText(first)}</text><text x="${W - R}" y="${H - 5}" text-anchor="end" class="axis">${dateText(last)}</text></svg>
+<p class="chart-readout" data-readout-target aria-live="polite">Tap a dot for details. Lower is faster.</p></div>`;
 }
 
 // Puzzles finished per week, with rounded tops anchored to the baseline.
@@ -79,8 +79,50 @@ function weekChart(s: ReturnType<typeof summarize>): string {
       return `${h ? `<rect x="${(cx - bar / 2).toFixed(1)}" y="${(H - B - h).toFixed(1)}" width="${bar}" height="${h.toFixed(1)}" rx="4" class="bar"/><text x="${cx.toFixed(1)}" y="${(H - B - h - 4).toFixed(1)}" text-anchor="middle" class="axis">${w.count}</text>` : `<rect x="${(cx - bar / 2).toFixed(1)}" y="${H - B - 2}" width="${bar}" height="2" class="bar empty"/>`}<rect x="${(cx - slot / 2).toFixed(1)}" y="0" width="${slot.toFixed(1)}" height="${H}" class="hit" data-readout="${label}" tabindex="0" role="button" aria-label="${label}"/><text x="${cx.toFixed(1)}" y="${H - 5}" text-anchor="middle" class="axis">${i === s.weeks.length - 1 ? "now" : dateText(w.start.getTime())}</text>`;
     })
     .join("");
-  return `<svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Puzzles finished per week over the last ${s.weeks.length} weeks">${bars}</svg>
-<p class="chart-readout" data-readout-target aria-live="polite">Tap a bar for details.</p>`;
+  return `<div class="chart-box"><svg viewBox="0 0 ${W} ${H}" class="chart" role="img" aria-label="Puzzles finished per week over the last ${s.weeks.length} weeks">${bars}</svg>
+<p class="chart-readout" data-readout-target aria-live="polite">Tap a bar for details.</p></div>`;
+}
+
+
+// One flower per finished puzzle: daisy (easy), tulip (medium), rose (hard).
+const flowerNames: Record<Difficulty, [string, string]> = {
+  easy: ["daisy", "daisies"],
+  medium: ["tulip", "tulips"],
+  hard: ["rose", "roses"],
+};
+function flower(d: Difficulty, cx: number, cy: number): string {
+  const stem = `<path d="M${cx} ${cy + 4}V${cy + 19}" class="stem"/><ellipse cx="${cx + 4.5}" cy="${cy + 13}" rx="4.5" ry="2" transform="rotate(-30 ${cx + 4.5} ${cy + 13})" class="leaf"/>`;
+  if (d === "easy") {
+    const petals = Array.from({ length: 8 }, (_, k) => `<ellipse cx="${cx}" cy="${cy - 6}" rx="2.5" ry="5" transform="rotate(${k * 45} ${cx} ${cy})" class="daisy-petal"/>`).join("");
+    return `${stem}${petals}<circle cx="${cx}" cy="${cy}" r="3.2" class="daisy-eye"/>`;
+  }
+  if (d === "medium")
+    return `${stem}<path d="M${cx - 6} ${cy - 5}Q${cx - 7} ${cy + 7} ${cx} ${cy + 7}Q${cx + 7} ${cy + 7} ${cx + 6} ${cy - 5}L${cx + 3} ${cy - 1.5}L${cx} ${cy - 8}L${cx - 3} ${cy - 1.5}Z" class="tulip"/>`;
+  return `${stem}<circle cx="${cx}" cy="${cy}" r="7.5" class="rose-outer"/><circle cx="${cx}" cy="${cy}" r="4.8" class="rose-mid"/><path d="M${cx - 2.4} ${cy + 0.5}Q${cx} ${cy - 3.5} ${cx + 2.6} ${cy}Q${cx + 1} ${cy + 3} ${cx - 1} ${cy + 1.2}" class="rose-swirl"/>`;
+}
+function gardenSvg(finishes: Finish[]): string {
+  const shown = finishes.slice(-96);
+  const cols = 8,
+    cell = 40,
+    rows = Math.ceil(shown.length / cols),
+    H = rows * 46 + 14;
+  const jitter = (i: number, salt: number) => (((i * 2654435761 + salt * 40503) >>> 0) % 7) - 3;
+  const blooms = shown
+    .map((f, i) => {
+      const cx = 20 + (i % cols) * cell + jitter(i, 1),
+        cy = 22 + Math.floor(i / cols) * 46 + jitter(i, 2);
+      const label = `${name(f.difficulty)} ${flowerNames[f.difficulty][0]} · ${dateText(f.at)}${f.ms >= 1000 ? ` · ${formatTime(f.ms)}` : ""}`;
+      return `<g class="flower" style="--i:${i}">${flower(f.difficulty, cx, cy)}<circle cx="${cx}" cy="${cy + 4}" r="17" class="hit" data-readout="${label}" tabindex="0" role="button" aria-label="${label}"/></g>`;
+    })
+    .join("");
+  const counts = difficulties.map((d) => ({ d, n: finishes.filter((f) => f.difficulty === d).length }));
+  const summary = counts
+    .filter((c) => c.n)
+    .map((c) => `${c.n} ${flowerNames[c.d][c.n === 1 ? 0 : 1]}`)
+    .join(" · ");
+  const more = finishes.length - shown.length;
+  return `<div class="chart-box garden"><svg viewBox="0 0 320 ${H}" class="chart" role="img" aria-label="Your garden: ${summary}">${blooms}</svg>
+<p class="chart-readout" data-readout-target aria-live="polite">${plural(finishes.length, "flower")} · ${summary}${more > 0 ? ` · ${more} more bloomed earlier` : ""}</p></div>`;
 }
 
 export function renderStats(finishes: Finish[], selected: Difficulty, synced: boolean): string {
@@ -89,7 +131,7 @@ export function renderStats(finishes: Finish[], selected: Difficulty, synced: bo
     ? "Saved to your account ♡ it follows you to any phone."
     : "Saved on this device.";
   if (!s.total)
-    return `<p class="stats-note">${note}</p><p class="stats-empty big">Finish a puzzle and your story starts here ♡</p>`;
+    return `<p class="stats-note">${note}</p><p class="stats-empty big">Finish a puzzle and your first flower blooms here ♡</p>`;
   const tile = (value: string, label: string) =>
     `<div class="stat"><strong>${value}</strong><span>${label}</span></div>`;
   const rows = difficulties
@@ -109,6 +151,8 @@ export function renderStats(finishes: Finish[], selected: Difficulty, synced: bo
   return `<p class="stats-note">${note}</p>
 <div class="stat-grid">${tile(String(s.total), s.total === 1 ? "puzzle finished" : "puzzles finished")}${tile(String(s.currentStreak), s.currentStreak === 1 ? "day in a row" : "days in a row")}${tile(String(s.longestStreak), "longest streak")}${tile(s.playMs >= 60000 ? formatDuration(s.playMs) : "–", "time played")}</div>
 <p class="growth">${growthLine(s)}</p>
+<h3>Your garden</h3>
+${gardenSvg(finishes)}
 <h3>How you're growing</h3>
 <div class="stat-tabs" role="group" aria-label="Difficulty">${difficulties.map((d) => `<button data-stats-difficulty="${d}" aria-pressed="${d === selected}">${name(d)}</button>`).join("")}</div>
 ${timeChart(finishes, selected)}

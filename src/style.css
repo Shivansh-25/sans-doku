@@ -1027,3 +1027,57 @@ summary {
   color: var(--muted);
   text-align: center;
 }
+
+.garden {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 10px 8px 8px;
+}
+.chart .stem {
+  stroke: #6f9a6a;
+  stroke-width: 2;
+  stroke-linecap: round;
+  fill: none;
+}
+.chart .leaf {
+  fill: #86ad7f;
+}
+.chart .daisy-petal {
+  fill: #fffdf8;
+  stroke: #e3cdd6;
+  stroke-width: 0.6;
+}
+.chart .daisy-eye {
+  fill: #f2bf3d;
+}
+.chart .tulip {
+  fill: #ee86ab;
+  stroke: #cf5f88;
+  stroke-width: 0.7;
+}
+.chart .rose-outer {
+  fill: #b92a55;
+}
+.chart .rose-mid {
+  fill: #d4466f;
+}
+.chart .rose-swirl {
+  fill: none;
+  stroke: #8d1b3f;
+  stroke-width: 1;
+  stroke-linecap: round;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .garden .flower {
+    transform-box: fill-box;
+    transform-origin: 50% 100%;
+    animation: bloom 0.6s ease-out both;
+    animation-delay: calc(var(--i) * 25ms);
+  }
+}
+@keyframes bloom {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+}
