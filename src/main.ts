@@ -137,7 +137,7 @@ function render() {
     const cellNotes = visibleNotes(game, i);
     b.innerHTML = game.values[i]
       ? String(game.values[i])
-      : `<span class="candidates">${Array.from({ length: 9 }, (_, n) => `<span>${cellNotes.includes(n + 1) ? n + 1 : ""}</span>`).join("")}</span>`;
+      : `<span class="candidates">${Array.from({ length: 9 }, (_, n) => `<span${value && n + 1 === value && cellNotes.includes(n + 1) ? ' class="hit"' : ""}>${cellNotes.includes(n + 1) ? n + 1 : ""}</span>`).join("")}</span>`;
     b.setAttribute(
       "aria-label",
       `Row ${row + 1}, column ${col + 1}, ${game.values[i] ? `${game.givens[i] ? "given " : ""}${game.values[i]}` : `empty${cellNotes.length ? ", candidates " + cellNotes.join(", ") : ""}`}`,
