@@ -11,6 +11,9 @@ export type Game = Snapshot & {
   givens: number[];
   history: Snapshot[];
   startedAt: number;
+  playMs?: number;
+  counted?: boolean;
+  hints?: number;
 };
 // Seed puzzles are validated by the test suite; transformations preserve their logic and uniqueness.
 export const seeds: Record<Difficulty, string> = {
@@ -206,6 +209,9 @@ export function validGame(
     notes(g.notes) &&
     (g.autoCandidates === undefined || typeof g.autoCandidates === "boolean") &&
     Number.isFinite(g.startedAt) &&
+    (g.playMs === undefined || (Number.isFinite(g.playMs) && g.playMs >= 0)) &&
+    (g.counted === undefined || typeof g.counted === "boolean") &&
+    (g.hints === undefined || (Number.isInteger(g.hints) && g.hints >= 0)) &&
     Array.isArray(g.history) &&
     g.history.length <= 100 &&
     g.history.every(
@@ -217,4 +223,93 @@ export function validGame(
         g.givens.every((n, i) => !n || s.values[i] === n),
     )
   );
+}
+
+// The unique solution of a puzzle, or null if it has none or several.
+export function solveUnique(givens: number[]): number[] | null {
+  const values = givens.slice();
+  if (values.some((n, i) => n && conflicts(values, i))) return null;
+  let found: number[] | null = null;
+  let count = 0;
+  function search() {
+    let index = -1,
+      options: number[] = [];
+    for (let i = 0; i < 81; i++)
+      if (!values[i]) {
+        const c = candidates(values, i);
+        if (!c.length) return;
+        if (index < 0 || c.length < options.length) {
+          index = i;
+          options = c;
+        }
+        if (c.length === 1) break;
+      }
+    if (index < 0) {
+      count++;
+      found = values.slice();
+      return;
+    }
+    for (const n of options) {
+      values[index] = n;
+      search();
+      if (count >= 2) break;
+    }
+    values[index] = 0;
+  }
+  search();
+  return count === 1 ? found : null;
+}
+export type Hint = {
+  index: number;
+  digit: number;
+  kind: "wrong" | "single" | "hidden" | "peek";
+  unit?: "row" | "column" | "box";
+};
+function units(): { unit: "row" | "column" | "box"; cells: number[] }[] {
+  const out: { unit: "row" | "column" | "box"; cells: number[] }[] = [];
+  for (let k = 0; k < 9; k++) {
+    out.push({ unit: "row", cells: Array.from({ length: 9 }, (_, c) => k * 9 + c) });
+    out.push({ unit: "column", cells: Array.from({ length: 9 }, (_, r) => r * 9 + k) });
+    const r0 = Math.floor(k / 3) * 3,
+      c0 = (k % 3) * 3;
+    out.push({
+      unit: "box",
+      cells: Array.from({ length: 9 }, (_, j) => (r0 + Math.floor(j / 3)) * 9 + c0 + (j % 3)),
+    });
+  }
+  return out;
+}
+export function isWrong(game: Game, solution: number[] | null, i: number) {
+  const n = game.values[i];
+  return Boolean(
+    n && !game.givens[i] && (conflicts(game.values, i) || (solution && solution[i] !== n)),
+  );
+}
+// Suggest the gentlest next step: a mistake, a naked single, a hidden single,
+// and finally (with a known solution) the emptiest-looking cell.
+export function findHint(game: Game, solution: number[] | null): Hint | null {
+  const v = game.values;
+  if (completed(v)) return null;
+  for (let i = 0; i < 81; i++)
+    if (isWrong(game, solution, i))
+      return { index: i, digit: solution ? solution[i] : 0, kind: "wrong" };
+  for (let i = 0; i < 81; i++)
+    if (!v[i]) {
+      const c = candidates(v, i);
+      if (c.length === 1) return { index: i, digit: c[0], kind: "single" };
+    }
+  for (const { unit, cells } of units())
+    for (let d = 1; d <= 9; d++) {
+      if (cells.some((i) => v[i] === d)) continue;
+      const homes = cells.filter((i) => !v[i] && candidates(v, i).includes(d));
+      if (homes.length === 1) return { index: homes[0], digit: d, kind: "hidden", unit };
+    }
+  if (solution) {
+    let best = -1;
+    for (let i = 0; i < 81; i++)
+      if (!v[i] && (best < 0 || candidates(v, i).length < candidates(v, best).length))
+        best = i;
+    if (best >= 0) return { index: best, digit: solution[best], kind: "peek" };
+  }
+  return null;
 }

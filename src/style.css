@@ -293,7 +293,7 @@ h1 {
 .tools {
   display: flex;
   justify-content: center;
-  gap: 42px;
+  gap: 16px;
   margin-bottom: 22px;
 }
 .tools button {
@@ -447,7 +447,7 @@ summary {
     font-size: 20px;
   }
   .tools {
-    gap: 34px;
+    gap: 8px;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -524,10 +524,7 @@ summary {
   }
 }
 
-.tools button[data-auto-candidates="true"] {
-  color: var(--sage);
-  background: var(--matching);
-}
+
 
 .celebration {
   position: fixed;
@@ -639,4 +636,68 @@ summary {
   min-height: 44px;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+.tools button:disabled {
+  opacity: 0.4;
+}
+.number-pad button {
+  position: relative;
+}
+.number-pad .left {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--muted);
+}
+.number-pad button.done {
+  opacity: 0.35;
+}
+.number-pad button[aria-pressed="true"] {
+  background: var(--selection);
+  box-shadow: inset 0 0 0 2px var(--selection-border);
+}
+.clock {
+  font-variant-numeric: tabular-nums;
+}
+.cell.wrong {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.cell.hint {
+  box-shadow: inset 0 0 0 2px var(--selection-border);
+  background: var(--selection);
+}
+.record h3 {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.record p {
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cell.wrong {
+    animation: gentle-shake 0.35s;
+  }
+  .cell.hint {
+    animation: hint-pulse 1.2s ease-in-out 2;
+  }
+}
+@keyframes gentle-shake {
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+@keyframes hint-pulse {
+  50% {
+    background: var(--matching);
+  }
 }

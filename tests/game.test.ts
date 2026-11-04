@@ -14,6 +14,9 @@ import {
   visibleNotes,
   completed,
   validGame,
+  solveUnique,
+  findHint,
+  isWrong,
   type Difficulty,
 } from "../src/game";
 for (const d of Object.keys(seeds) as Difficulty[])
@@ -166,4 +169,35 @@ test("manual notes stay cleaned up when switching back from automatic candidates
   assert.equal(g.autoCandidates, true);
   toggleAutoCandidates(g);
   assert.deepEqual(visibleNotes(g, 16), [9]);
+});
+
+test("solveUnique finds the single solution and rejects ambiguous puzzles", () => {
+  const sol = solveUnique([...seeds.easy].map(Number));
+  assert.ok(sol && completed(sol));
+  assert.equal(solveUnique(Array(81).fill(0)), null);
+});
+
+test("hints flag mistakes first, then singles, then reveal a correct digit", () => {
+  const g = gameFromPuzzle("easy", seeds.easy);
+  const sol = solveUnique(g.givens)!;
+  const h = findHint(g, sol)!;
+  assert.ok(h && !g.values[h.index] && sol[h.index] === h.digit);
+  const empty = g.values.findIndex((n) => !n);
+  const bad = sol[empty] === 1 ? 2 : 1;
+  enter(g, empty, bad);
+  if (isWrong(g, sol, empty)) {
+    const wrong = findHint(g, sol)!;
+    assert.equal(wrong.kind, "wrong");
+    assert.equal(wrong.index, empty);
+    assert.equal(wrong.digit, sol[empty]);
+  }
+  const done = gameFromPuzzle("easy", sol.join(""));
+  assert.equal(findHint(done, sol), null);
+});
+
+test("saved games accept optional play time, hints and counted flag", () => {
+  const g = gameFromPuzzle("easy", seeds.easy);
+  assert.ok(validGame({ ...g, playMs: 5000, hints: 2, counted: true }, "easy"));
+  assert.equal(validGame({ ...g, playMs: -1 }, "easy"), false);
+  assert.equal(validGame({ ...g, hints: 1.5 }, "easy"), false);
 });
