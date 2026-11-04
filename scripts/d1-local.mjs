@@ -10,6 +10,7 @@ export function localDatabase(path = ":memory:") {
     "0003_admin_login.sql",
     "0004_account_finishes.sql",
     "0005_notes.sql",
+    "0006_custom_milestones.sql",
   ])
     db.exec(
       readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),

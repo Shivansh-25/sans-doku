@@ -205,3 +205,191 @@ details {
 .milestone-note button {
   justify-self: start;
 }
+
+/* --- Tabs and the notes & milestones editor --- */
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin: 22px 0 4px;
+  flex-wrap: wrap;
+}
+.tabs button[aria-pressed="true"] {
+  background: #5e765f;
+  color: #fff;
+  border-color: #5e765f;
+}
+[hidden] {
+  display: none !important;
+}
+.panel {
+  background: #fffef9;
+  border: 1px solid #d9ded3;
+  border-radius: 16px;
+  padding: 20px;
+  margin: 18px 0;
+}
+.panel h2 {
+  margin-top: 0;
+}
+.panel h3 {
+  font: 16px Georgia, serif;
+  margin: 18px 0 8px;
+}
+.panel textarea,
+.panel input[type="text"],
+.panel input[type="number"],
+.panel input[type="date"] {
+  width: 100%;
+  font: inherit;
+  padding: 10px 12px;
+  border: 1px solid #d9ded3;
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+}
+.panel input[type="number"] {
+  width: 110px;
+}
+.panel input[type="date"] {
+  width: 190px;
+}
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+.count {
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7465;
+}
+.status {
+  min-height: 20px;
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: #526c58;
+}
+.status.bad {
+  color: #923b4f;
+}
+button.primary {
+  background: #5e765f;
+  color: #fff;
+  border-color: #5e765f;
+}
+button.link {
+  border: 0;
+  background: none;
+  color: #526c58;
+  text-decoration: underline;
+  min-height: 0;
+  padding: 4px;
+}
+button.danger {
+  color: #923b4f;
+  border-color: #e3c4cb;
+}
+.preview {
+  background: #f9e0ea;
+  border-radius: 14px;
+  padding: 12px 14px;
+  max-width: 420px;
+}
+.preview strong {
+  font-size: 12px;
+  color: #a22e62;
+}
+.preview p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #4a2336;
+  font-size: 14px;
+}
+.sent-note {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #d9ded3;
+  font-size: 13px;
+}
+.milestones {
+  display: grid;
+  gap: 8px;
+}
+.milestone {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid #d9ded3;
+  border-radius: 12px;
+  background: #fff;
+}
+.milestone.dim {
+  opacity: 0.55;
+}
+.milestone-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.milestone .rule {
+  font-size: 12px;
+  color: #526c58;
+}
+.milestone .msg {
+  font-size: 12px;
+  color: #6b7465;
+  overflow-wrap: anywhere;
+}
+.tag {
+  font-size: 10px;
+  font-weight: 400;
+  background: #eceee5;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #6b7465;
+}
+.editor {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1.5px solid #5e765f;
+  border-radius: 14px;
+  background: #f7f8f2;
+}
+.editor h3 {
+  margin-top: 0;
+}
+.field {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.field select {
+  min-width: 200px;
+}
+.field.check {
+  gap: 6px;
+}
+.rule-preview {
+  font-size: 13px;
+  color: #526c58;
+  margin: 8px 0;
+}
+.unit {
+  font-size: 13px;
+  color: #6b7465;
+}
+@media (max-width: 600px) {
+  .milestone {
+    flex-direction: column;
+  }
+}

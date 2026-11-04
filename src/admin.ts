@@ -1,6 +1,6 @@
 import "./admin.css";
 import { activitySummary, type DailyTime } from "./daily-time";
-import { MILESTONES } from "./milestones";
+import { mountNotes } from "./admin-notes";
 type Row = Record<string, string | number | null>;
 type Stats = {
   now: number;
@@ -286,69 +286,32 @@ document.addEventListener("visibilitychange", () => {
 });
 void refresh();
 
-// --- Notes for sans: a message she sees on her next open, plus milestone texts ---
-type NotesData = { messages: { id: number; text: string; at: number }[]; milestones: Record<string, string> };
-const notesSection = document.createElement("section");
-notesSection.id = "notes-admin";
-notesSection.innerHTML = `<h2>Notes for sans ♡</h2><p class="hint">A note appears once the next time she opens the app signed in, and stays in her Stats under “Little notes”. Up to 600 characters.</p><textarea id="note-text" rows="3" maxlength="600" placeholder="Good morning ♡"></textarea><div class="note-actions"><button id="note-send">Send note</button><span id="note-status" role="status"></span></div><div id="sent-notes"></div><details><summary>Milestone notes (your words for her special moments)</summary><p class="hint">Leave a box empty to use the built-in message. Each one unlocks for her automatically.</p><div id="milestone-notes"></div></details>`;
-document.querySelector("header")!.after(notesSection);
-const noteStatus = notesSection.querySelector<HTMLElement>("#note-status")!;
-async function notesCall(body?: object): Promise<NotesData> {
-  const r = await fetch(
-    "/admin/api/notes",
-    body
-      ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
-      : { cache: "no-store" },
-  );
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || "Something went wrong");
-  return data;
-}
-function renderNotes(data: NotesData) {
-  const sent = notesSection.querySelector<HTMLElement>("#sent-notes")!;
-  sent.replaceChildren();
-  for (const m of data.messages) {
-    const row = document.createElement("div");
-    row.className = "sent-note";
-    const body = document.createElement("span");
-    body.textContent = `${new Date(m.at).toLocaleString()} · ${m.text}`;
-    const del = document.createElement("button");
-    del.textContent = "Delete";
-    del.onclick = () => void act({ action: "delete", id: m.id }, "Deleted");
-    row.append(body, del);
-    sent.append(row);
+
+// --- Tabs: the stats dashboard and the notes/milestones editor ---
+const mainEl = document.querySelector("main")!;
+const headerEl = mainEl.querySelector("header")!;
+const statsPanel = document.createElement("div");
+statsPanel.id = "tab-stats";
+while (headerEl.nextSibling) statsPanel.append(headerEl.nextSibling);
+const notesPanel = document.createElement("div");
+notesPanel.id = "tab-notes";
+notesPanel.hidden = true;
+const tabs = document.createElement("nav");
+tabs.className = "tabs";
+tabs.setAttribute("aria-label", "Admin sections");
+tabs.innerHTML = `<button data-tab="stats" aria-pressed="true">Stats</button><button data-tab="notes" aria-pressed="false">Notes &amp; milestones ♡</button>`;
+headerEl.after(tabs, statsPanel, notesPanel);
+let notesMounted = false;
+function showTab(name: string) {
+  const notes = name === "notes";
+  statsPanel.hidden = notes;
+  notesPanel.hidden = !notes;
+  tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tab === name)));
+  if (notes && !notesMounted) {
+    notesMounted = true;
+    mountNotes(notesPanel);
   }
-  const box = notesSection.querySelector<HTMLElement>("#milestone-notes")!;
-  box.replaceChildren();
-  for (const m of MILESTONES) {
-    const wrap = document.createElement("div");
-    wrap.className = "milestone-note";
-    const label = document.createElement("label");
-    label.textContent = `${m.title} (${m.hint})`;
-    const area = document.createElement("textarea");
-    area.rows = 2;
-    area.maxLength = 600;
-    area.placeholder = m.defaultText;
-    area.value = data.milestones[m.key] || "";
-    const save = document.createElement("button");
-    save.textContent = "Save";
-    save.onclick = () => void act({ action: "milestone", key: m.key, text: area.value }, "Saved");
-    wrap.append(label, area, save);
-    box.append(wrap);
-  }
+  history.replaceState(null, "", notes ? "#notes" : location.pathname);
 }
-async function act(body: object, done: string) {
-  noteStatus.textContent = "Saving…";
-  try {
-    renderNotes(await notesCall(body));
-    noteStatus.textContent = done;
-  } catch (e) {
-    noteStatus.textContent = e instanceof Error ? e.message : "Something went wrong";
-  }
-}
-notesSection.querySelector<HTMLButtonElement>("#note-send")!.onclick = async () => {
-  const area = notesSection.querySelector<HTMLTextAreaElement>("#note-text")!;
-  await act({ action: "send", text: area.value }, "Sent ♡ She'll see it next time she opens the app.");
-  if (noteStatus.textContent?.startsWith("Sent")) area.value = "";
-};
-notesCall().then(renderNotes, () => (noteStatus.textContent = "Couldn't load notes."));
+tabs.querySelectorAll("button").forEach((b) => (b.onclick = () => showTab(b.dataset.tab!)));
+if (location.hash === "#notes") showTab("notes");

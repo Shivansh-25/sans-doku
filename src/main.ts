@@ -31,7 +31,7 @@ import { touchMetrics, pauseMetrics } from "./metrics";
 import { PlayClock } from "./play-clock";
 import { greeting, togetherLine } from "./greeting";
 import { chime, unlockAudio } from "./sound";
-import { unlockedKeys } from "./milestones";
+import { milestoneList, unlockedIds } from "./milestones";
 import { cachedNotes, fetchNotes, inbox, loadSeen, markSeen, nextLocked, unseenItems, type Notes } from "./notes";
 import { getPrefs, setPref } from "./prefs";
 import {
@@ -425,12 +425,13 @@ function finish() {
       acct,
     };
     const newBest = isNewBest(scope(history, acct), entry);
-    const unlockedBefore = unlockedKeys(scope(history, acct)).length;
+    const list = milestoneList(inboxData.milestones, inboxData.custom);
+    const unlockedBefore = unlockedIds(list, scope(history, acct)).length;
     history = addFinish(history, entry);
     saveHistory(history);
     const s = summarize(scope(history, acct));
     note = `Finished in ${formatTime(entry.ms)}${newBest ? " — your best yet ♡" : "."} ${puzzles(s.total)} finished${s.currentStreak > 1 ? ` · ${s.currentStreak} days in a row ♡` : "."}`;
-    if (acct && unlockedKeys(scope(history, acct)).length > unlockedBefore)
+    if (acct && unlockedIds(list, scope(history, acct)).length > unlockedBefore)
       note += " A new little note is waiting in your stats ♡";
     if (acct) void syncFinishes();
   }
@@ -604,7 +605,7 @@ function renderNotesSection(body: HTMLElement) {
     card.append(title, text);
     list.append(card);
   }
-  for (const hint of nextLocked(myFinishes())) {
+  for (const hint of nextLocked(inboxData, myFinishes())) {
     const locked = document.createElement("p");
     locked.className = "note-locked";
     locked.textContent = `A note is waiting · ${hint}`;

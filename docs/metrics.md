@@ -116,3 +116,23 @@ The admin page has a “Notes for sans” section: send a message (shown once on
 ```sh
 npx wrangler d1 migrations apply sansdoku-metrics --remote
 ```
+
+### Admin: notes and custom milestones
+
+`/admin` has two tabs: **Stats** and **Notes & milestones**. In the second tab you can send her a note (with a live preview of the card she'll see) and manage milestones: edit the wording of the six built-in ones, or add your own. A custom milestone has a title, a rule, a message and an on/off switch. Rules:
+
+| Rule | Unlocks when she… |
+| --- | --- |
+| Puzzles finished | has finished N puzzles of any level |
+| Puzzles of one level | has finished N easy / medium / hard puzzles |
+| Days in a row | has a streak of N days |
+| Different days played | has played on N different days |
+| Puzzles without a hint | has finished N puzzles without using a hint |
+| A fast finish | finished a puzzle (any level or one level) hint-free in under N minutes |
+| On a special date | opens the app on or after a chosen date (a surprise, never teased) |
+
+Rules are checked on her phone from her synced record, so they work offline. Each milestone is shown to her once and stays under Stats → Little notes; the closest locked ones appear there as gentle teasers with progress (for example "Finish 25 puzzles · 19/25"). Needs migration `0006_custom_milestones.sql`:
+
+```sh
+npx wrangler d1 migrations apply sansdoku-metrics --remote
+```
