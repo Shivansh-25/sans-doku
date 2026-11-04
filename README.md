@@ -30,6 +30,11 @@ The development server does not enable the service worker. Test offline support 
 - Easy, medium, hard; one saved game per difficulty.
 - Pencil notes, undo, erase, conflict highlighting, completion detection. Entering a number removes that candidate from manual notes in its row, column, and box; erasing does not recreate notes, and Undo restores removed notes.
 - Long-press Notes to toggle automatic candidates; the same action is under Settings → A little shortcut. While enabled, candidates update with the board. Turning it off restores your manual notes; writing a manual note also exits automatic mode. The mode is saved per puzzle and toggles can be undone.
+- Visible Auto toggle next to Notes (long-press Notes still works). Editing a note while Auto is on keeps the auto-filled candidates and lets you adjust them by hand. Selecting a number also highlights it inside pencil notes.
+- Number pad shows how many of each digit are left and greys out finished digits. Tap a number with no square selected to place it in many squares ("number-first"); tap it again or press Escape to stop. Tapping the selected square again deselects it.
+- Gentle mistake alerts (Settings → Helpers): wrong entries are tinted, shake softly and get a kind message. Puzzles are unique, so the solution is derived on-device and never stored.
+- Hint button: first tap points at a square in words (a mistake, a single candidate, or a number with one spot left); tapping Hint again reveals the digit.
+- Optional timer (off by default). Play time only counts active moments. Finishing a puzzle shows the time, a personal best (only for hint-free games) and a soft streak; totals live under Settings → Your little record.
 - Keyboard: arrows select cells, 1–9 enter, N toggles notes, Delete erases.
 - Fresh API puzzles online; a reserve of up to 3 puzzles per difficulty on this device for offline use. A bundled bank remains as a fallback when that reserve is empty.
 - Light, Dark, and System appearance, remembered on this device.

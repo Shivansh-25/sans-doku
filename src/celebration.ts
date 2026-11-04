@@ -7,7 +7,7 @@ export function clearCelebration() {
   overlay = undefined;
 }
 
-export function celebrate() {
+export function celebrate(extra = "") {
   clearCelebration();
   overlay = document.createElement("div");
   overlay.className = "celebration";
@@ -27,6 +27,8 @@ export function celebrate() {
   const card = document.createElement("div");
   card.className = "celebration-card";
   card.innerHTML = `<div role="status" aria-live="polite"><span class="celebration-heart" aria-hidden="true">♡</span><h2>Love you my cutu ♡</h2><p>You solved it! So proud of you.</p></div><button type="button" aria-label="Dismiss celebration">A little win ♡</button>`;
+  if (extra)
+    card.querySelector("p")!.textContent = `You solved it! So proud of you. ${extra}`;
   card.querySelector("button")!.onclick = clearCelebration;
   overlay.append(hearts, card);
   document.body.append(overlay);
