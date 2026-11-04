@@ -130,14 +130,37 @@ test("restarting keeps the puzzle, clears progress, and can be undone", () => {
 import { renderStats } from "../src/stats-view";
 test("the garden grows one flower per puzzle, in each difficulty's own shape", () => {
   const list = [fin(1, "easy", 60_000), fin(2, "easy", 60_000), fin(3, "medium", 60_000), fin(4, "hard", 60_000)];
-  const html = renderStats(list, "easy", false);
+  const html = renderStats(list, "all", false);
   assert.equal((html.match(/class="flower"/g) || []).length, 4);
   assert.equal((html.match(/daisy-petal/g) || []).length, 16);
   assert.equal((html.match(/class="tulip"/g) || []).length, 1);
   assert.equal((html.match(/class="rose-outer"/g) || []).length, 1);
   assert.match(html, /2 daisies · 1 tulip · 1 rose/);
   const many = Array.from({ length: 100 }, (_, i) => fin(1, "easy", 60_000 + i));
-  const capped = renderStats(many, "easy", false);
+  const capped = renderStats(many, "all", false);
   assert.equal((capped.match(/class="flower"/g) || []).length, 96);
   assert.match(capped, /4 more bloomed earlier/);
+});
+
+test("the filter narrows tiles, garden, tables and charts, but 'all' shows everything", () => {
+  const list = [
+    ...Array.from({ length: 3 }, (_, i) => fin(1 + i, "easy", 60_000 - i * 1000)),
+    ...Array.from({ length: 2 }, (_, i) => fin(5 + i, "medium", 120_000 - i * 1000)),
+    fin(8, "hard", 300_000),
+  ];
+  const flowers = (h: string) => (h.match(/class="flower"/g) || []).length;
+  const tileTotal = (h: string) => h.match(/<div class="stat"><strong>(\d+)<\/strong>/)![1];
+  assert.equal(flowers(renderStats(list, "all", false)), 6);
+  assert.equal(tileTotal(renderStats(list, "all", false)), "6");
+  const medium = renderStats(list, "medium", false);
+  assert.equal(flowers(medium), 2);
+  assert.equal(tileTotal(medium), "2");
+  assert.ok(!/class="daisy-petal"/.test(medium) && !/class="rose-outer"/.test(medium));
+  assert.equal((medium.match(/<th scope="row">(Easy|Medium|Hard)<\/th>/g) || []).length, 1);
+  assert.match(medium, /aria-pressed="true">Medium/);
+  assert.match(renderStats(list, "all", false), /aria-pressed="true">All/);
+  // a level she has not played shows a friendly empty state with the filter still visible
+  const none = renderStats(list.filter((f) => f.difficulty !== "hard"), "hard", false);
+  assert.match(none, /No hard puzzles yet/);
+  assert.match(none, /data-stats-filter="all"/);
 });
