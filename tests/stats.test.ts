@@ -126,3 +126,18 @@ test("restarting keeps the puzzle, clears progress, and can be undone", () => {
   undo(g);
   assert.equal(g.values[empty], 9);
 });
+
+import { renderStats } from "../src/stats-view";
+test("the garden grows one flower per puzzle, in each difficulty's own shape", () => {
+  const list = [fin(1, "easy", 60_000), fin(2, "easy", 60_000), fin(3, "medium", 60_000), fin(4, "hard", 60_000)];
+  const html = renderStats(list, "easy", false);
+  assert.equal((html.match(/class="flower"/g) || []).length, 4);
+  assert.equal((html.match(/daisy-petal/g) || []).length, 16);
+  assert.equal((html.match(/class="tulip"/g) || []).length, 1);
+  assert.equal((html.match(/class="rose-outer"/g) || []).length, 1);
+  assert.match(html, /2 daisies · 1 tulip · 1 rose/);
+  const many = Array.from({ length: 100 }, (_, i) => fin(1, "easy", 60_000 + i));
+  const capped = renderStats(many, "easy", false);
+  assert.equal((capped.match(/class="flower"/g) || []).length, 96);
+  assert.match(capped, /4 more bloomed earlier/);
+});

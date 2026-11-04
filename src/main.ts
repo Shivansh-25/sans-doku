@@ -855,11 +855,12 @@ document.querySelectorAll<HTMLButtonElement>("[data-theme-choice]").forEach(
     }),
 );
 document.addEventListener("keydown", (e) => {
+  // Never steal keys while she is typing or any dialog (sign in, nickname, stats…) is open.
+  const target = e.target as HTMLElement | null;
   if (
     busy ||
-    settings.open ||
-    newDialog.open ||
-    nicknameDialog.open ||
+    document.querySelector("dialog[open]") ||
+    target?.closest("input, textarea, select, [contenteditable]") ||
     e.ctrlKey ||
     e.metaKey ||
     e.altKey
