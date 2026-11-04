@@ -156,6 +156,12 @@ export function enter(
   }
   return true;
 }
+// Back to the starting numbers; Undo can bring everything back.
+export function restartPuzzle(game: Game) {
+  remember(game);
+  game.values = game.givens.slice();
+  game.notes = Array.from({ length: 81 }, () => []);
+}
 export function fillCandidates(game: Game) {
   if (completed(game.values)) return;
   remember(game);

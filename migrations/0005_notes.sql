@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS sans_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  text TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS milestone_notes (
+  key TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);

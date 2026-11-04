@@ -80,3 +80,49 @@ test("account history merges server rows and stays separate from guest history",
   assert.equal(formatDuration(45 * 60000), "45m");
   assert.equal(formatDuration(200 * 60000), "3h 20m");
 });
+
+import { unlockedKeys, MILESTONES } from "../src/milestones";
+import { greeting, daysTogether, togetherLine } from "../src/greeting";
+import { inbox, unseenItems, nextLocked } from "../src/notes";
+import { restartPuzzle, gameFromPuzzle, enter, undo, seeds } from "../src/game";
+
+test("milestones unlock from her record", () => {
+  assert.deepEqual(unlockedKeys([]), []);
+  const one = [fin(1, "easy", 60_000)];
+  assert.deepEqual(unlockedKeys(one), ["first"]);
+  const many = Array.from({ length: 10 }, (_, i) => fin(1 + i, i === 9 ? "hard" : "easy", 60_000));
+  assert.deepEqual(unlockedKeys(many), ["first", "ten", "streak7", "hard"]);
+  assert.equal(MILESTONES.length, 6);
+});
+
+test("inbox shows messages and unlocked notes, with custom text winning", () => {
+  const notes = { messages: [{ id: 2, text: "Hi ♡", at: 5 }], milestones: { first: "Mine" } };
+  const items = inbox(notes, [fin(1, "easy", 60_000)]);
+  assert.deepEqual(items.map((i) => [i.id, i.text]), [["m:2", "Hi ♡"], ["k:first", "Mine"]]);
+  assert.deepEqual(unseenItems(items, ["m:2"]).map((i) => i.id), ["k:first"]);
+  assert.deepEqual(nextLocked([fin(1, "easy", 60_000)], 2), ["Finish 10 puzzles", "Play 7 days in a row"]);
+});
+
+test("greeting follows the hour and days together count from 22 Nov 2025", () => {
+  assert.match(greeting(8), /^Good morning/);
+  assert.match(greeting(14), /^Good afternoon/);
+  assert.match(greeting(20), /^Good evening/);
+  assert.match(greeting(2), /^Still up/);
+  assert.equal(daysTogether(new Date(2025, 10, 22)), 0);
+  assert.equal(daysTogether(new Date(2026, 10, 4)), 347);
+  assert.equal(togetherLine(new Date(2025, 10, 22)), "Today is where it all began ♡");
+  assert.equal(togetherLine(new Date(2025, 10, 23)), "1 day together ♡");
+  assert.equal(togetherLine(new Date(2026, 0, 22)), "Happy 2-month anniversary ♡");
+  assert.equal(togetherLine(new Date(2026, 10, 22)), "Happy 1 year together ♡");
+  assert.equal(togetherLine(new Date(2026, 10, 4)), "347 days together ♡");
+});
+
+test("restarting keeps the puzzle, clears progress, and can be undone", () => {
+  const g = gameFromPuzzle("easy", seeds.easy);
+  const empty = g.values.findIndex((n) => !n);
+  enter(g, empty, 9);
+  restartPuzzle(g);
+  assert.deepEqual(g.values, g.givens);
+  undo(g);
+  assert.equal(g.values[empty], 9);
+});

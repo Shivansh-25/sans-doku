@@ -33,7 +33,7 @@ await mkdir("dist/server", { recursive: true });
 await mkdir("dist/.openai", { recursive: true });
 const handler = (
   await Promise.all(
-    ["access", "account", "metrics", "handler"].map((name) =>
+    ["access", "account", "notes", "metrics", "handler"].map((name) =>
       readFile(`worker/${name}.mjs`, "utf8"),
     ),
   )
