@@ -76,4 +76,4 @@ The Sites identity is recorded in `.openai/hosting.json`. Its initial deployment
 
 ## Player metrics
 
-Optional nicknames, device-level player stats, active play time, offline metric sync, and a private admin dashboard with live online presence. Sans mode is available only for the nickname `sans` (case insensitive). See [setup, cost, and admin access](docs/metrics.md).
+Optional nicknames, device-level player stats, active play time, offline metric sync, and a private admin dashboard with live online presence. Sans mode is unlocked by signing in as the optional `sans` account (Settings → Sign in); the nickname `sans` is reserved. See [account setup](docs/metrics.md#optional-sans-account). See [setup, cost, and admin access](docs/metrics.md).
