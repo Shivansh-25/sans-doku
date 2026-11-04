@@ -46,7 +46,7 @@ import {
   difficulties,
   type Finish,
 } from "./stats";
-import { renderStats } from "./stats-view";
+import { renderStats, type StatsFilter } from "./stats-view";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 const initialSaved = load("easy");
 let busy = false;
@@ -64,7 +64,7 @@ let armed = 0,
   solutionCache: number[] | null = null;
 const puzzles = (n: number) => `${n} ${n === 1 ? "puzzle" : "puzzles"}`;
 let history: Finish[] = loadHistory();
-let statsDifficulty: Difficulty = "easy";
+let statsFilter: StatsFilter = "all";
 let inboxData: Notes = cachedNotes();
 const signedIn = () => Boolean(getProfile().account);
 const myFinishes = () => scope(history, signedIn());
@@ -553,7 +553,7 @@ function recordText() {
 const statsDialog = document.querySelector<HTMLDialogElement>("#stats-dialog")!;
 function renderStatsDialog() {
   const body = statsDialog.querySelector<HTMLElement>("#stats-body")!;
-  body.innerHTML = renderStats(myFinishes(), statsDifficulty, signedIn());
+  body.innerHTML = renderStats(myFinishes(), statsFilter, signedIn());
   if (signedIn()) {
     const together = togetherLine(new Date());
     if (together) {
@@ -577,10 +577,10 @@ function renderStatsDialog() {
       }
     });
   });
-  body.querySelectorAll<HTMLButtonElement>("[data-stats-difficulty]").forEach(
+  body.querySelectorAll<HTMLButtonElement>("[data-stats-filter]").forEach(
     (b) =>
       (b.onclick = () => {
-        statsDifficulty = b.dataset.statsDifficulty as Difficulty;
+        statsFilter = b.dataset.statsFilter as StatsFilter;
         renderStatsDialog();
       }),
   );
@@ -614,7 +614,7 @@ function renderNotesSection(body: HTMLElement) {
 }
 function openStats() {
   settings.close();
-  statsDifficulty = difficulty;
+  statsFilter = "all";
   renderStatsDialog();
   statsDialog.showModal();
   void syncFinishes();

@@ -1117,3 +1117,12 @@ dialog p {
     opacity: 0;
   }
 }
+
+.chart-label {
+  margin: 10px 0 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.stat-tabs {
+  margin: 0 0 14px;
+}

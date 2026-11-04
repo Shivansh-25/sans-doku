@@ -125,22 +125,41 @@ function gardenSvg(finishes: Finish[]): string {
 <p class="chart-readout" data-readout-target aria-live="polite">${plural(finishes.length, "flower")} · ${summary}${more > 0 ? ` · ${more} more bloomed earlier` : ""}</p></div>`;
 }
 
-export function renderStats(finishes: Finish[], selected: Difficulty, synced: boolean): string {
-  const s = summarize(finishes);
+export type StatsFilter = "all" | Difficulty;
+const filterLabel = (f: StatsFilter) => (f === "all" ? "All" : name(f));
+
+// "All" stacks one solve-time chart per difficulty (times of different levels are not comparable).
+function growthCharts(finishes: Finish[], filter: StatsFilter): string {
+  if (filter !== "all") return timeChart(finishes, filter);
+  const shown = difficulties.filter(
+    (d) => finishes.filter((f) => f.difficulty === d && f.ms >= 1000).length >= 2,
+  );
+  if (!shown.length)
+    return `<p class="stats-empty">Finish two timed puzzles of the same level to see your times here.</p>`;
+  return shown.map((d) => `<p class="chart-label">${name(d)}</p>${timeChart(finishes, d)}`).join("");
+}
+
+// The filter narrows everything on the page except the little notes.
+export function renderStats(finishes: Finish[], filter: StatsFilter, synced: boolean): string {
   const note = synced
     ? "Saved to your account · it follows you to any phone ♡"
     : "Saved on this device.";
-  if (!s.total)
+  if (!finishes.length)
     return `<p class="stats-note">${note}</p><p class="stats-empty big">Finish a puzzle and your first flower blooms here ♡</p>`;
+  const view = filter === "all" ? finishes : finishes.filter((f) => f.difficulty === filter);
+  const tabs = `<div class="stat-tabs" role="group" aria-label="Show stats for">${(["all", ...difficulties] as StatsFilter[]).map((f) => `<button data-stats-filter="${f}" aria-pressed="${f === filter}">${filterLabel(f)}</button>`).join("")}</div>`;
+  if (!view.length && filter !== "all")
+    return `<p class="stats-note">${note}</p>${tabs}<p class="stats-empty big">No ${filter} puzzles yet. Finish one to plant a ${flowerNames[filter][0]} ♡</p>`;
+  const s = summarize(view);
   const tile = (value: string, label: string) =>
     `<div class="stat"><strong>${value}</strong><span>${label}</span></div>`;
-  const rows = difficulties
+  const rows = (filter === "all" ? difficulties : [filter])
     .map((d) => {
       const x = s.byDifficulty[d];
       return `<tr><th scope="row">${name(d)}</th><td>${x.count}</td><td>${x.bestMs ? formatTime(x.bestMs) : "–"}</td><td>${x.avgMs ? formatTime(x.avgMs) : "–"}</td></tr>`;
     })
     .join("");
-  const recent = finishes
+  const recent = view
     .slice(-10)
     .reverse()
     .map(
@@ -149,13 +168,13 @@ export function renderStats(finishes: Finish[], selected: Difficulty, synced: bo
     )
     .join("");
   return `<p class="stats-note">${note}</p>
+${tabs}
 <div class="stat-grid">${tile(String(s.total), s.total === 1 ? "puzzle finished" : "puzzles finished")}${tile(String(s.currentStreak), s.currentStreak === 1 ? "day in a row" : "days in a row")}${tile(String(s.longestStreak), "longest streak")}${tile(s.playMs >= 60000 ? formatDuration(s.playMs) : "–", "time played")}</div>
 <p class="growth">${growthLine(s)}</p>
 <h3>Your garden</h3>
-${gardenSvg(finishes)}
+${gardenSvg(view)}
 <h3>How you're growing</h3>
-<div class="stat-tabs" role="group" aria-label="Difficulty">${difficulties.map((d) => `<button data-stats-difficulty="${d}" aria-pressed="${d === selected}">${name(d)}</button>`).join("")}</div>
-${timeChart(finishes, selected)}
+${growthCharts(view, filter)}
 <h3>Puzzles per week</h3>
 ${weekChart(s)}
 <h3>By difficulty</h3>
