@@ -81,26 +81,84 @@ test("account history merges server rows and stays separate from guest history",
   assert.equal(formatDuration(200 * 60000), "3h 20m");
 });
 
-import { unlockedKeys, MILESTONES } from "../src/milestones";
+import { milestoneList, unlockedIds, ruleProgress, ruleText, BUILTIN_KEYS } from "../src/milestones";
 import { greeting, daysTogether, togetherLine } from "../src/greeting";
-import { inbox, unseenItems, nextLocked } from "../src/notes";
+import { inbox, unseenItems, nextLocked, type Notes } from "../src/notes";
 import { restartPuzzle, gameFromPuzzle, enter, undo, seeds } from "../src/game";
 
-test("milestones unlock from her record", () => {
-  assert.deepEqual(unlockedKeys([]), []);
-  const one = [fin(1, "easy", 60_000)];
-  assert.deepEqual(unlockedKeys(one), ["first"]);
+const noNotes: Notes = { messages: [], milestones: {}, custom: [] };
+const custom = (over: object) => ({ id: 1, title: "T", kind: "total", difficulty: null, value: 1, on_date: null, text: "msg", enabled: 1, ...over }) as Notes["custom"][number];
+
+test("built-in milestones unlock from her record", () => {
+  const list = milestoneList({}, []);
+  assert.equal(list.length, BUILTIN_KEYS.length);
+  assert.deepEqual(unlockedIds(list, []), []);
+  assert.deepEqual(unlockedIds(list, [fin(1, "easy", 60_000)]), ["k:first"]);
   const many = Array.from({ length: 10 }, (_, i) => fin(1 + i, i === 9 ? "hard" : "easy", 60_000));
-  assert.deepEqual(unlockedKeys(many), ["first", "ten", "streak7", "hard"]);
-  assert.equal(MILESTONES.length, 6);
+  assert.deepEqual(unlockedIds(list, many), ["k:first", "k:ten", "k:streak7", "k:hard"]);
 });
 
-test("inbox shows messages and unlocked notes, with custom text winning", () => {
-  const notes = { messages: [{ id: 2, text: "Hi ♡", at: 5 }], milestones: { first: "Mine" } };
-  const items = inbox(notes, [fin(1, "easy", 60_000)]);
+test("every rule kind unlocks at the right moment", () => {
+  const now = day(20);
+  const f = [
+    fin(10, "easy", 600_000),
+    fin(11, "easy", 300_000, 1),
+    fin(12, "hard", 900_000),
+    fin(12, "medium", 1_200_000),
+  ];
+  const p = (rule: Parameters<typeof ruleProgress>[0]) => ruleProgress(rule, f, now);
+  assert.deepEqual(p({ kind: "total", value: 4 }), { done: true, current: 4, target: 4 });
+  assert.equal(p({ kind: "total", value: 5 }).done, false);
+  assert.equal(p({ kind: "difficulty", value: 2, difficulty: "easy" }).done, true);
+  assert.equal(p({ kind: "difficulty", value: 2, difficulty: "hard" }).done, false);
+  assert.equal(p({ kind: "streak", value: 3 }).done, true); // 10, 11, 12
+  assert.equal(p({ kind: "streak", value: 4 }).done, false);
+  assert.equal(p({ kind: "days", value: 3 }).done, true);
+  assert.equal(p({ kind: "days", value: 4 }).done, false);
+  assert.deepEqual(p({ kind: "nohint", value: 3 }), { done: true, current: 3, target: 3 });
+  assert.equal(p({ kind: "nohint", value: 4 }).done, false);
+  assert.equal(p({ kind: "fast", value: 11 }).done, true); // 600s easy, hint-free
+  assert.equal(p({ kind: "fast", value: 6 }).done, false); // the 5-minute game used a hint
+  assert.equal(p({ kind: "fast", value: 16, difficulty: "hard" }).done, true);
+  assert.equal(p({ kind: "fast", value: 11, difficulty: "hard" }).done, false);
+  assert.equal(ruleProgress({ kind: "date", value: 0, date: "2026-11-20" }, [], day(19)).done, false);
+  assert.equal(ruleProgress({ kind: "date", value: 0, date: "2026-11-20" }, [], day(20)).done, true);
+  assert.equal(ruleProgress({ kind: "date", value: 0, date: "2026-11-20" }, [], day(25)).done, true);
+});
+
+test("rules read as plain sentences", () => {
+  assert.equal(ruleText({ kind: "total", value: 1 }), "Finish a puzzle");
+  assert.equal(ruleText({ kind: "total", value: 25 }), "Finish 25 puzzles");
+  assert.equal(ruleText({ kind: "difficulty", value: 5, difficulty: "hard" }), "Finish 5 hard puzzles");
+  assert.equal(ruleText({ kind: "difficulty", value: 1, difficulty: "medium" }), "Finish a medium puzzle");
+  assert.equal(ruleText({ kind: "streak", value: 1 }), "Play 1 day in a row");
+  assert.equal(ruleText({ kind: "days", value: 20 }), "Play on 20 different days");
+  assert.equal(ruleText({ kind: "nohint", value: 10 }), "Finish 10 puzzles without a hint");
+  assert.equal(ruleText({ kind: "fast", value: 15 }), "Finish any puzzle in under 15 minutes");
+  assert.equal(ruleText({ kind: "fast", value: 1, difficulty: "hard" }), "Finish a hard puzzle in under 1 minute");
+  assert.equal(ruleText({ kind: "date", value: 0, date: "2026-12-25" }), "On 2026-12-25");
+});
+
+test("custom milestones join the inbox and the teasers, disabled ones never appear", () => {
+  const notes: Notes = {
+    messages: [{ id: 2, text: "Hi ♡", at: 5 }],
+    milestones: { first: "Mine" },
+    custom: [
+      custom({ id: 7, title: "Twenty-five", value: 25, text: "25!" }),
+      custom({ id: 8, title: "Off", value: 1, enabled: 0 }),
+      custom({ id: 9, title: "Surprise", kind: "date", value: 0, on_date: "2099-01-01", text: "secret" }),
+    ],
+  };
+  const one = [fin(1, "easy", 60_000)];
+  const items = inbox(notes, one, day(2));
   assert.deepEqual(items.map((i) => [i.id, i.text]), [["m:2", "Hi ♡"], ["k:first", "Mine"]]);
   assert.deepEqual(unseenItems(items, ["m:2"]).map((i) => i.id), ["k:first"]);
-  assert.deepEqual(nextLocked([fin(1, "easy", 60_000)], 2), ["Finish 10 puzzles", "Play 7 days in a row"]);
+  const twentyFive = Array.from({ length: 25 }, (_, i) => fin(1 + (i % 20), "easy", 60_000));
+  assert.ok(inbox(notes, twentyFive, day(30)).some((i) => i.id === "c:7"));
+  assert.ok(!inbox(notes, twentyFive, day(30)).some((i) => i.id === "c:8"));
+  // teasers: closest first, with progress, and the date surprise stays hidden
+  assert.deepEqual(nextLocked(notes, one, 2, day(2)), ["Play 7 days in a row · 1/7", "Finish 10 puzzles · 1/10"]);
+  assert.ok(!nextLocked(notes, one, 10, day(2)).some((t) => t.includes("2099")));
 });
 
 test("greeting follows the hour and days together count from 22 Nov 2025", () => {
