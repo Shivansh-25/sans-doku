@@ -277,6 +277,12 @@ h1 {
   display: grid;
   place-items: center;
 }
+.candidates span.hit {
+  background: var(--selection-border);
+  color: var(--board);
+  border-radius: 50%;
+  font-weight: 700;
+}
 .game-message {
   text-align: center;
   font-size: 11px;
