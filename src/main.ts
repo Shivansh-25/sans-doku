@@ -155,7 +155,7 @@ function render() {
       : "You did it. A little win, just for you."
     : game.autoCandidates
       ? noteMode
-        ? "Writing a note switches to manual candidates."
+        ? "Tap a number to edit the filled candidates by hand."
         : "Automatic candidates on · long-press Notes to turn off."
       : noteMode
         ? getTheme() === "sans"

@@ -96,12 +96,16 @@ test("automatic candidates toggle, follow entries, and preserve manual notes", (
   assert.equal(saved.autoCandidates, true);
 });
 
-test("manual note entry exits automatic mode and undo restores it", () => {
+test("manual note entry keeps auto-filled candidates, exits automatic mode, and undo restores it", () => {
   const g = gameFromPuzzle("easy", seeds.easy);
   toggleAutoCandidates(g);
+  const auto = visibleNotes(g, 2).slice();
+  assert.ok(auto.includes(4) && auto.length > 1);
   enter(g, 2, 4, true);
   assert.equal(g.autoCandidates, false);
-  assert.deepEqual(visibleNotes(g, 2), [4]);
+  assert.deepEqual(visibleNotes(g, 2), auto.filter((n) => n !== 4));
+  assert.deepEqual(visibleNotes(g, 3), g.notes[3]);
+  assert.ok(g.notes[3].length > 0);
   undo(g);
   assert.equal(g.autoCandidates, true);
   assert.deepEqual(g.notes[2], []);
