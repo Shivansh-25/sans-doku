@@ -26,18 +26,23 @@ import {
   startAccount,
   endAccount,
 } from "./profile";
-import { signIn, signOut, checkSession } from "./account";
+import { signIn, signOut, checkSession, pullFinishes, pushFinishes } from "./account";
 import { touchMetrics, pauseMetrics } from "./metrics";
 import { PlayClock } from "./play-clock";
 import { getPrefs, setPref } from "./prefs";
 import {
-  loadStats,
-  saveStats,
-  recordFinish,
-  currentStreak,
-  total,
+  loadHistory,
+  saveHistory,
+  addFinish,
+  mergeRemote,
+  scope,
+  summarize,
+  isNewBest,
   formatTime,
+  difficulties,
+  type Finish,
 } from "./stats";
+import { renderStats } from "./stats-view";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 const initialSaved = load("easy");
 let busy = false;
@@ -56,6 +61,10 @@ let armed = 0,
   solutionKey = "",
   solutionCache: number[] | null = null;
 const puzzles = (n: number) => `${n} ${n === 1 ? "puzzle" : "puzzles"}`;
+let history: Finish[] = loadHistory();
+let statsDifficulty: Difficulty = "easy";
+const signedIn = () => Boolean(getProfile().account);
+const myFinishes = () => scope(history, signedIn());
 const sansTheme = () => getTheme() === "sans";
 const setMessage = (text: string) =>
   (document.querySelector("#message")!.textContent = text);
@@ -107,7 +116,7 @@ const icon = (name: string) =>
     settings: "⚙",
     new: "＋",
   })[name] || "";
-app.innerHTML = `<main class="shell"><header><a class="brand" href="/" aria-label="SansDoku home"><span class="brand-mark">▦</span> SansDoku<span class="brand-dot">.</span></a><button class="icon-button" id="settings" aria-label="Open settings">${icon("settings")}</button></header><section class="intro"><p class="eyebrow">A LITTLE MOMENT FOR YOU</p><h1>One square at a time.</h1><p class="subtitle">No rush. Just you and a little possibility.</p></section><nav class="difficulties" aria-label="Difficulty">${(["easy", "medium", "hard"] as Difficulty[]).map((d) => `<button data-difficulty="${d}" aria-pressed="${d === difficulty}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</nav><section class="game-area" aria-label="Sudoku game"><div class="game-meta"><span id="progress"></span><span id="clock" class="clock" hidden></span><span id="saved" class="saved"></span></div><div id="board" class="board" role="group" aria-label="Sudoku board"></div><p class="game-message" id="message" role="status" aria-live="polite">Pick a square. Make a little progress.</p><div class="tools"><button id="undo">${icon("undo")}<span>Undo</span></button><button id="erase">${icon("erase")}<span>Erase</span></button><button id="notes" aria-pressed="false">${icon("notes")}<span>Notes</span></button><button id="auto" aria-pressed="false" aria-label="Automatic candidates">${icon("auto")}<span>Auto</span></button><button id="hint" aria-label="Hint">${icon("hint")}<span>Hint</span></button></div><div class="number-pad" aria-label="Number pad">${Array.from({ length: 9 }, (_, i) => `<button data-number="${i + 1}" aria-label="Enter ${i + 1}">${i + 1}<span class="left" aria-hidden="true"></span></button>`).join("")}</div><button id="new-game" class="new-game">${icon("new")} New puzzle</button></section><footer><span class="small-heart">♡</span><span id="footer-message">A little space to slow down.</span><span id="offline-status"></span><button id="update" hidden>Update available</button></footer></main><dialog id="settings-dialog"><div class="dialog-top"><h2>Your little space</h2><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div><section class="player-settings"><div class="profile-row"><div><span class="profile-label">Playing as</span><strong id="player-label" class="profile-name"></strong></div><div class="profile-actions"><button id="edit-nickname" class="profile-edit" aria-label="Change nickname">Edit</button><button id="signin-open" class="profile-edit">Sign in</button><button id="signout" class="profile-edit" hidden>Sign out</button></div></div><p class="metrics-notice">Your nickname, game stats, and online playing status are shared with the app owner. No email needed.</p></section><fieldset class="appearance"><legend>Appearance</legend><div class="theme-options">${["light", "dark", "system", "sans"].map((t) => `<button data-theme-choice="${t}" aria-pressed="${getTheme() === t}">${t === "sans" ? "Sans mode ♡" : t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div></fieldset><fieldset class="appearance"><legend>Helpers</legend><div class="theme-options"><button id="pref-mistakes">Mistake alerts</button><button id="pref-timer">Show timer</button></div></fieldset><section class="record"><h3>Your little record</h3><p id="record-text"></p></section><p>On iPhone, open in Safari, tap Share, then Add to Home Screen.</p><p id="offline-detail"></p><p>Games are saved on this device. Clearing website data will remove them.</p><details><summary>A little shortcut</summary><p>Tap Auto (or long-press Notes) to toggle automatic candidates. They update as you play. Turn them off to return to your manual notes. Writing a manual note also turns them off.</p><button class="primary" id="fill-candidates">Fill candidates</button></details></dialog><dialog id="new-dialog"><h2>A fresh start?</h2><p>This replaces your saved ${difficulty} puzzle. Your other difficulties stay saved.</p><div class="dialog-actions"><button id="cancel-new">Keep playing</button><button class="primary" id="confirm-new">New puzzle</button></div></dialog>`;
+app.innerHTML = `<main class="shell"><header><a class="brand" href="/" aria-label="SansDoku home"><span class="brand-mark">▦</span> SansDoku<span class="brand-dot">.</span></a><div class="header-actions"><button class="icon-button" id="stats-open" aria-label="Open your stats"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button><button class="icon-button" id="settings" aria-label="Open settings">${icon("settings")}</button></div></header><section class="intro"><p class="eyebrow">A LITTLE MOMENT FOR YOU</p><h1>One square at a time.</h1><p class="subtitle">No rush. Just you and a little possibility.</p></section><nav class="difficulties" aria-label="Difficulty">${(["easy", "medium", "hard"] as Difficulty[]).map((d) => `<button data-difficulty="${d}" aria-pressed="${d === difficulty}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</nav><section class="game-area" aria-label="Sudoku game"><div class="game-meta"><span id="progress"></span><span id="clock" class="clock" hidden></span><span id="saved" class="saved"></span></div><div id="board" class="board" role="group" aria-label="Sudoku board"></div><p class="game-message" id="message" role="status" aria-live="polite">Pick a square. Make a little progress.</p><div class="tools"><button id="undo">${icon("undo")}<span>Undo</span></button><button id="erase">${icon("erase")}<span>Erase</span></button><button id="notes" aria-pressed="false">${icon("notes")}<span>Notes</span></button><button id="auto" aria-pressed="false" aria-label="Automatic candidates">${icon("auto")}<span>Auto</span></button><button id="hint" aria-label="Hint">${icon("hint")}<span>Hint</span></button></div><div class="number-pad" aria-label="Number pad">${Array.from({ length: 9 }, (_, i) => `<button data-number="${i + 1}" aria-label="Enter ${i + 1}">${i + 1}<span class="left" aria-hidden="true"></span></button>`).join("")}</div><button id="new-game" class="new-game">${icon("new")} New puzzle</button></section><footer><span class="small-heart">♡</span><span id="footer-message">A little space to slow down.</span><span id="offline-status"></span><button id="update" hidden>Update available</button></footer></main><dialog id="settings-dialog"><div class="dialog-top"><h2>Your little space</h2><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div><section class="player-settings"><div class="profile-row"><div><span class="profile-label">Playing as</span><strong id="player-label" class="profile-name"></strong></div><div class="profile-actions"><button id="edit-nickname" class="profile-edit" aria-label="Change nickname">Edit</button><button id="signin-open" class="profile-edit">Sign in</button><button id="signout" class="profile-edit" hidden>Sign out</button></div></div><p class="metrics-notice">Your nickname, game stats, and online playing status are shared with the app owner. No email needed.</p></section><fieldset class="appearance"><legend>Appearance</legend><div class="theme-options">${["light", "dark", "system", "sans"].map((t) => `<button data-theme-choice="${t}" aria-pressed="${getTheme() === t}">${t === "sans" ? "Sans mode ♡" : t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div></fieldset><fieldset class="appearance"><legend>Helpers</legend><div class="theme-options"><button id="pref-mistakes">Mistake alerts</button><button id="pref-timer">Show timer</button></div></fieldset><section class="record"><h3>Your little record</h3><p id="record-text"></p><button type="button" class="profile-edit" id="stats-open-settings">See all my stats</button></section><p>On iPhone, open in Safari, tap Share, then Add to Home Screen.</p><p id="offline-detail"></p><p>Games are saved on this device. Clearing website data will remove them.</p><details><summary>A little shortcut</summary><p>Tap Auto (or long-press Notes) to toggle automatic candidates. They update as you play. Turn them off to return to your manual notes. Writing a manual note also turns them off.</p><button class="primary" id="fill-candidates">Fill candidates</button></details></dialog><dialog id="stats-dialog" aria-labelledby="stats-title"><div class="dialog-top"><h2 id="stats-title">Your little stats</h2><button class="icon-button" id="close-stats" aria-label="Close stats">×</button></div><div id="stats-body"></div></dialog><dialog id="new-dialog"><h2>A fresh start?</h2><p>This replaces your saved ${difficulty} puzzle. Your other difficulties stay saved.</p><div class="dialog-actions"><button id="cancel-new">Keep playing</button><button class="primary" id="confirm-new">New puzzle</button></div></dialog>`;
 app.insertAdjacentHTML(
   "beforeend",
   `<dialog id="nickname-dialog"><h2>Your little name</h2><p>What should we call you?</p><form id="nickname-form"><label for="nickname-input">Nickname</label><input id="nickname-input" name="nickname" maxlength="24" autocomplete="nickname" placeholder="Your nickname"><p class="form-error" id="nickname-error" role="alert" hidden>That name is reserved ♡ Try another.</p><p class="metrics-notice">Your nickname, play time, and online playing status are visible only to the app owner. You can play as Guest instead.</p><div class="dialog-actions"><button type="button" id="nickname-guest">Play as Guest</button><button class="primary" type="submit">Let’s play</button></div></form></dialog><dialog id="signin-dialog"><h2>Sign in</h2><p>Optional. Signing in unlocks special things and keeps your stats together on every device.</p><form id="signin-form"><label for="signin-user">Username</label><input id="signin-user" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" required><label for="signin-pass">Password</label><input id="signin-pass" name="password" type="password" autocomplete="current-password" maxlength="100" required><p class="form-error" id="signin-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" id="signin-cancel">Not now</button><button class="primary" type="submit" id="signin-submit">Sign in</button></div></form></dialog>`,
@@ -181,6 +190,7 @@ document.querySelector("#signin-form")!.addEventListener("submit", async (e) => 
   }
   pass.value = "";
   startAccount(result.playerId);
+  void syncFinishes();
   setTheme("sans");
   signinDialog.close();
   updateProfile();
@@ -198,7 +208,7 @@ void checkSession().then((state) => {
   if (state === "out" && getProfile().account) {
     endAccount();
     updateProfile();
-  }
+  } else if (state === "in" && getProfile().account) void syncFinishes();
 });
 document.querySelector<HTMLButtonElement>("#edit-nickname")!.onclick = () => {
   settings.close();
@@ -385,20 +395,48 @@ function finish() {
   let note = "";
   if (!game.counted) {
     game.counted = true;
-    const result = recordFinish(
-      loadStats(),
-      difficulty,
-      game.playMs || 0,
-      Boolean(game.hints),
-    );
-    saveStats(result.stats);
-    const streak = currentStreak(result.stats);
-    note = `Finished in ${formatTime(game.playMs || 0)}${result.newBest ? " — your best yet ♡" : "."} ${puzzles(total(result.stats))} finished${streak > 1 ? ` · ${streak} days in a row ♡` : "."}`;
+    const acct = signedIn();
+    const entry: Finish = {
+      id: crypto.randomUUID(),
+      difficulty: game.difficulty,
+      at: Date.now(),
+      ms: Math.round(game.playMs || 0),
+      hints: game.hints || 0,
+      acct,
+    };
+    const newBest = isNewBest(scope(history, acct), entry);
+    history = addFinish(history, entry);
+    saveHistory(history);
+    const s = summarize(scope(history, acct));
+    note = `Finished in ${formatTime(entry.ms)}${newBest ? " — your best yet ♡" : "."} ${puzzles(s.total)} finished${s.currentStreak > 1 ? ` · ${s.currentStreak} days in a row ♡` : "."}`;
+    if (acct) void syncFinishes();
   }
   finishNote = note;
   persist();
   render();
   if (sansTheme()) celebrate(note);
+}
+// Keeps her record in step with the account: pull what other phones finished, push ours.
+let syncing = false;
+async function syncFinishes() {
+  if (!signedIn() || syncing || !navigator.onLine) return;
+  syncing = true;
+  try {
+    const remote = await pullFinishes();
+    if (!remote) return;
+    history = mergeRemote(history, remote);
+    for (;;) {
+      const batch = history.filter((f) => f.acct && !f.synced).slice(0, 100);
+      if (!batch.length || !(await pushFinishes(batch))) break;
+      const sent = new Set(batch.map((f) => f.id));
+      history = history.map((f) => (sent.has(f.id) ? { ...f, synced: true } : f));
+    }
+    saveHistory(history);
+    if (statsDialog.open) renderStatsDialog();
+    document.querySelector("#record-text")!.textContent = recordText();
+  } finally {
+    syncing = false;
+  }
 }
 function revealOrHint() {
   if (busy || completed(game.values)) return;
@@ -478,15 +516,49 @@ const prefButton = (id: string, name: "mistakes" | "timer") =>
 prefButton("#pref-mistakes", "mistakes");
 prefButton("#pref-timer", "timer");
 function recordText() {
-  const stats = loadStats();
-  const streak = currentStreak(stats);
-  const best = (["easy", "medium", "hard"] as const)
-    .filter((d) => stats.best[d])
-    .map((d) => `${d} ${formatTime(stats.best[d]!)}`);
-  return total(stats)
-    ? `${puzzles(total(stats))} finished${streak > 1 ? ` · ${streak} days in a row ♡` : ""}${best.length ? ` · best: ${best.join(", ")}` : ""}`
+  const s = summarize(myFinishes());
+  const best = difficulties
+    .filter((d) => s.byDifficulty[d].bestMs)
+    .map((d) => `${d} ${formatTime(s.byDifficulty[d].bestMs!)}`);
+  return s.total
+    ? `${puzzles(s.total)} finished${s.currentStreak > 1 ? ` · ${s.currentStreak} days in a row ♡` : ""}${best.length ? ` · best: ${best.join(", ")}` : ""}`
     : "Finish a puzzle to start your record ♡";
 }
+const statsDialog = document.querySelector<HTMLDialogElement>("#stats-dialog")!;
+function renderStatsDialog() {
+  const body = statsDialog.querySelector<HTMLElement>("#stats-body")!;
+  body.innerHTML = renderStats(myFinishes(), statsDifficulty, signedIn());
+  body.querySelectorAll<HTMLElement>("[data-readout]").forEach((el) => {
+    const show = () => {
+      const target = el.closest("svg")!.parentElement!.querySelector("[data-readout-target]");
+      if (target) target.textContent = el.dataset.readout || "";
+    };
+    el.addEventListener("click", show);
+    el.addEventListener("keydown", (e) => {
+      if ((e as KeyboardEvent).key === "Enter" || (e as KeyboardEvent).key === " ") {
+        e.preventDefault();
+        show();
+      }
+    });
+  });
+  body.querySelectorAll<HTMLButtonElement>("[data-stats-difficulty]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        statsDifficulty = b.dataset.statsDifficulty as Difficulty;
+        renderStatsDialog();
+      }),
+  );
+}
+function openStats() {
+  settings.close();
+  statsDifficulty = difficulty;
+  renderStatsDialog();
+  statsDialog.showModal();
+  void syncFinishes();
+}
+document.querySelector<HTMLButtonElement>("#stats-open")!.onclick = openStats;
+document.querySelector<HTMLButtonElement>("#stats-open-settings")!.onclick = openStats;
+document.querySelector<HTMLButtonElement>("#close-stats")!.onclick = () => statsDialog.close();
 document.querySelectorAll<HTMLButtonElement>("[data-difficulty]").forEach(
   (b) =>
     (b.onclick = () => {
@@ -697,6 +769,7 @@ document.querySelector<HTMLButtonElement>("#update")!.onclick = () => {
 };
 window.addEventListener("online", () => {
   offlineStatus();
+  void syncFinishes();
   void replenish(difficulty);
 });
 window.addEventListener("offline", offlineStatus);

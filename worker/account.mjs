@@ -86,6 +86,7 @@ export async function handleAccount(request, env) {
     const user = await sessionUser(request, env);
     return accountReply(user ? { username: user, playerId: await accountPlayerId() } : { username: null });
   }
+  if (url.pathname === "/api/stats") return handleAccountStats(request, env, url);
   if (url.pathname !== "/api/login" && url.pathname !== "/api/logout") return null;
   if (request.method !== "POST") return accountReply({ error: "Method not allowed" }, 405);
   if (request.headers.get("Origin") !== url.origin)
@@ -142,5 +143,63 @@ export async function handleAccount(request, env) {
     );
   } catch {
     return accountReply({ error: "Sign-in is temporarily unavailable." }, 503);
+  }
+}
+
+const accountDifficulties = new Set(["easy", "medium", "hard"]);
+const accountFinishId = /^[A-Za-z0-9:_-]{6,64}$/;
+// Her finished puzzles, so her record and growth follow her across devices.
+async function handleAccountStats(request, env, url) {
+  if (!env.DB) return accountReply({ error: "Stats are unavailable." }, 503);
+  const user = await sessionUser(request, env);
+  if (!user) return accountReply({ error: "Please sign in." }, 401);
+  if (request.method === "GET") {
+    const rows = await env.DB.batch([
+      env.DB.prepare(
+        `SELECT id, difficulty, finished_at AS at, play_ms AS ms, hints
+         FROM account_finishes WHERE account = ? ORDER BY finished_at DESC LIMIT 2000`,
+      ).bind(user),
+    ]);
+    return accountReply({ finishes: rows[0].results });
+  }
+  if (request.method !== "POST") return accountReply({ error: "Method not allowed" }, 405);
+  if (request.headers.get("Origin") !== url.origin)
+    return accountReply({ error: "Origin not allowed" }, 403);
+  if (!request.headers.get("Content-Type")?.startsWith("application/json"))
+    return accountReply({ error: "JSON required" }, 415);
+  try {
+    const text = await request.text();
+    if (text.length > 40000) return accountReply({ error: "Request too large" }, 413);
+    const list = JSON.parse(text).finishes;
+    if (!Array.isArray(list) || list.length > 100)
+      return accountReply({ error: "Invalid finishes" }, 400);
+    const now = Date.now();
+    const valid = (f) =>
+      f &&
+      typeof f.id === "string" &&
+      accountFinishId.test(f.id) &&
+      accountDifficulties.has(f.difficulty) &&
+      Number.isSafeInteger(f.at) &&
+      f.at > 1577836800000 &&
+      f.at < now + 86400000 &&
+      Number.isSafeInteger(f.ms) &&
+      f.ms >= 0 &&
+      f.ms <= 86400000 &&
+      Number.isSafeInteger(f.hints) &&
+      f.hints >= 0 &&
+      f.hints <= 999;
+    if (!list.every(valid)) return accountReply({ error: "Invalid finishes" }, 400);
+    if (list.length)
+      await env.DB.batch(
+        list.map((f) =>
+          env.DB.prepare(
+            `INSERT INTO account_finishes (id,account,difficulty,finished_at,play_ms,hints,created_at)
+             VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING`,
+          ).bind(f.id, user, f.difficulty, f.at, f.ms, f.hints, now),
+        ),
+      );
+    return accountReply({ ok: true, saved: list.length });
+  } catch {
+    return accountReply({ error: "Stats are temporarily unavailable." }, 503);
   }
 }

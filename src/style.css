@@ -728,3 +728,160 @@ summary {
   background: var(--board);
   color: inherit;
 }
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.header-actions .icon-button {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--ink);
+}
+#stats-dialog {
+  width: min(94vw, 440px);
+  max-height: 88svh;
+  overflow-y: auto;
+}
+.stats-note {
+  font-size: 11px;
+  margin: 0 0 14px;
+}
+.stats-empty {
+  font-size: 12px;
+  margin: 8px 0 16px;
+}
+.stats-empty.big {
+  font-size: 14px;
+  text-align: center;
+  padding: 28px 0;
+}
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.stat {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 14px 14px 12px;
+}
+.stat strong {
+  display: block;
+  font: 30px Georgia, serif;
+  line-height: 1.1;
+  color: var(--accent-ink);
+}
+.stat span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.growth {
+  text-align: center;
+  color: var(--accent-ink);
+  margin: 4px 0 20px;
+}
+#stats-dialog h3 {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+  margin: 22px 0 8px;
+  letter-spacing: 0.2px;
+}
+.stat-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.stat-tabs button {
+  flex: 1;
+  min-height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: none;
+  font-size: 12px;
+}
+.stat-tabs button[aria-pressed="true"] {
+  background: var(--matching);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+.chart .grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart .axis {
+  fill: var(--muted);
+  font-size: 9px;
+}
+.chart .line {
+  fill: none;
+  stroke: var(--selection-border);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart .dot {
+  fill: var(--selection-border);
+  stroke: var(--board);
+  stroke-width: 2;
+}
+.chart .dot.hinted {
+  fill: var(--board);
+  stroke: var(--selection-border);
+}
+.chart .bar {
+  fill: var(--selection-border);
+}
+.chart .bar.empty {
+  fill: var(--border);
+}
+.chart .hit {
+  fill: transparent;
+  cursor: pointer;
+  outline: none;
+}
+.chart .hit:focus-visible {
+  stroke: var(--selection-border);
+  stroke-width: 2;
+}
+.chart-readout {
+  text-align: center;
+  font-size: 12px;
+  margin: 6px 0 0;
+  min-height: 20px;
+}
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.stats-table th,
+.stats-table td {
+  padding: 8px 4px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+}
+.stats-table th:first-child,
+.stats-table td:first-child {
+  text-align: left;
+}
+.stats-table thead th {
+  color: var(--muted);
+  font-size: 11px;
+}
+.stats-table tbody th {
+  text-align: left;
+  color: var(--ink);
+}

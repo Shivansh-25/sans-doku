@@ -7,8 +7,8 @@ const env = (extra = {}) => ({ DB: localDatabase(), SANS_PASSWORD: password, ...
 const call = (e: object, path: string, init: RequestInit = {}) =>
   handleRequest(
     new Request(`https://sansdoku.test${path}`, {
-      headers: { Origin: "https://sansdoku.test", "Content-Type": "application/json", "CF-Connecting-IP": "192.0.2.9", ...(init.headers as object) },
       ...init,
+      headers: { Origin: "https://sansdoku.test", "Content-Type": "application/json", "CF-Connecting-IP": "192.0.2.9", ...(init.headers as object) },
     }),
     e,
     {},
@@ -60,4 +60,30 @@ test("repeated wrong guesses are rate limited", async () => {
   let status = 0;
   for (let i = 0; i < 12; i++) status = (await login(e, { username: "sans", password: "wrong-wrong" })).status;
   assert.equal(status, 429);
+});
+
+test("finished puzzles sync only for the signed-in account and are idempotent", async () => {
+  const e = env();
+  const finish = { id: "game-0001-abcd", difficulty: "easy", at: Date.now() - 1000, ms: 123456, hints: 0 };
+  const post = (cookie: string, body: object) =>
+    call(e, "/api/stats", { method: "POST", headers: { Cookie: cookie }, body: JSON.stringify(body) });
+  assert.equal((await call(e, "/api/stats")).status, 401);
+  const cookie = cookieOf(await login(e));
+  assert.equal((await post("", { finishes: [finish] })).status, 401);
+  assert.equal((await post(cookie, { finishes: [finish, finish] })).status, 200);
+  assert.equal((await post(cookie, { finishes: [{ ...finish, id: "second-game-01", difficulty: "hard", at: finish.at + 5 }] })).status, 200);
+  const list = await (await call(e, "/api/stats", { headers: { Cookie: cookie } })).json();
+  assert.equal(list.finishes.length, 2);
+  assert.equal(list.finishes[0].difficulty, "hard");
+  assert.equal(list.finishes[1].ms, 123456);
+  for (const bad of [
+    { ...finish, id: "x" },
+    { ...finish, difficulty: "insane" },
+    { ...finish, ms: -5 },
+    { ...finish, at: Date.now() + 10 * 86400000 },
+    { ...finish, hints: 1.5 },
+  ])
+    assert.equal((await post(cookie, { finishes: [bad] })).status, 400);
+  const cross = await call(e, "/api/stats", { method: "POST", headers: { Cookie: cookie, Origin: "https://evil.test" }, body: JSON.stringify({ finishes: [] }) });
+  assert.equal(cross.status, 403);
 });

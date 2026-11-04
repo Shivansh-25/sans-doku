@@ -4,24 +4,15 @@ import { dirname } from "node:path";
 export function localDatabase(path = ":memory:") {
   if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
-  db.exec(
-    readFileSync(
-      new URL("../migrations/0001_metrics.sql", import.meta.url),
-      "utf8",
-    ),
-  );
-  db.exec(
-    readFileSync(
-      new URL("../migrations/0002_daily_time.sql", import.meta.url),
-      "utf8",
-    ),
-  );
-  db.exec(
-    readFileSync(
-      new URL("../migrations/0003_admin_login.sql", import.meta.url),
-      "utf8",
-    ),
-  );
+  for (const file of [
+    "0001_metrics.sql",
+    "0002_daily_time.sql",
+    "0003_admin_login.sql",
+    "0004_account_finishes.sql",
+  ])
+    db.exec(
+      readFileSync(new URL(`../migrations/${file}`, import.meta.url), "utf8"),
+    );
   return {
     prepare(sql) {
       return {

@@ -35,6 +35,7 @@ The development server does not enable the service worker. Test offline support 
 - Gentle mistake alerts (Settings → Helpers): wrong entries are tinted, shake softly and get a kind message. Puzzles are unique, so the solution is derived on-device and never stored.
 - Hint button: first tap points at a square in words (a mistake, a single candidate, or a number with one spot left); tapping Hint again reveals the digit.
 - Optional timer (off by default). Play time only counts active moments. Finishing a puzzle shows the time, a personal best (only for hint-free games) and a soft streak; totals live under Settings → Your little record.
+- Stats page (chart icon in the header): puzzles finished, streaks, time played, solve-time chart per difficulty, puzzles per week, bests/averages and recent puzzles, with a gentle "how you're growing" line. History is stored per device; when signed in as `sans` her finished puzzles are saved to the account (`account_finishes` table, migration 0004) and follow her to any phone. Games finished as a guest or while signed in are kept separate.
 - Keyboard: arrows select cells, 1–9 enter, N toggles notes, Delete erases.
 - Fresh API puzzles online; a reserve of up to 3 puzzles per difficulty on this device for offline use. A bundled bank remains as a fallback when that reserve is empty.
 - Light, Dark, and System appearance, remembered on this device.
