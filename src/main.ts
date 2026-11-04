@@ -32,7 +32,7 @@ import { PlayClock } from "./play-clock";
 import { greeting, togetherLine } from "./greeting";
 import { chime, unlockAudio } from "./sound";
 import { milestoneList, unlockedIds } from "./milestones";
-import { cachedNotes, fetchNotes, inbox, loadSeen, markSeen, nextLocked, unseenItems, type Notes } from "./notes";
+import { cachedNotes, fetchNotes, inbox, markSeen, nextLocked, unseenItems, type InboxItem, type Notes } from "./notes";
 import { getPrefs, setPref } from "./prefs";
 import {
   loadHistory,
@@ -47,6 +47,13 @@ import {
   type Finish,
 } from "./stats";
 import { renderStats, type StatsFilter } from "./stats-view";
+// A dialog opens with focus on the dialog itself, so no button starts with a focus ring.
+const nativeShowModal = HTMLDialogElement.prototype.showModal;
+HTMLDialogElement.prototype.showModal = function () {
+  nativeShowModal.call(this);
+  this.tabIndex = -1;
+  this.focus({ preventScroll: true });
+};
 const app = document.querySelector<HTMLDivElement>("#app")!;
 const initialSaved = load("easy");
 let busy = false;
@@ -65,6 +72,8 @@ let armed = 0,
 const puzzles = (n: number) => `${n} ${n === 1 ? "puzzle" : "puzzles"}`;
 let history: Finish[] = loadHistory();
 let statsFilter: StatsFilter = "all";
+let statsTab: "stats" | "notes" = "stats";
+let freshAtOpen = new Set<string>();
 let inboxData: Notes = cachedNotes();
 const signedIn = () => Boolean(getProfile().account);
 const myFinishes = () => scope(history, signedIn());
@@ -118,7 +127,7 @@ const icon = (name: string) =>
     hint: "✧",
     new: "＋",
   })[name] || "";
-app.innerHTML = `<main class="shell"><header><a class="brand" href="/" aria-label="SansDoku home"><span class="brand-mark">▦</span> SansDoku<span class="brand-dot">.</span></a><div class="header-actions"><button class="icon-button" id="stats-open" aria-label="Open your stats"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button><button class="icon-button" id="settings" aria-label="Open settings"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h8.5M17.5 7H20M4 12h3.5M12.5 12H20M4 17h9.5M18.5 17H20"/><circle cx="15" cy="7" r="2.5"/><circle cx="10" cy="12" r="2.5"/><circle cx="16" cy="17" r="2.5"/></svg></button></div></header><section class="intro"><p class="eyebrow">A LITTLE MOMENT FOR YOU</p><h1>One square at a time.</h1><p class="subtitle">No rush. Just you and a little possibility.</p></section><nav class="difficulties" aria-label="Difficulty">${(["easy", "medium", "hard"] as Difficulty[]).map((d) => `<button data-difficulty="${d}" aria-pressed="${d === difficulty}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</nav><section class="game-area" aria-label="Sudoku game"><div class="game-meta"><span id="progress"></span><span id="clock" class="clock" hidden></span><span id="saved" class="saved"></span></div><div id="board" class="board" role="group" aria-label="Sudoku board"></div><p class="game-message" id="message" role="status" aria-live="polite">Pick a square. Make a little progress.</p><div class="tools"><button id="undo">${icon("undo")}<span>Undo</span></button><button id="erase">${icon("erase")}<span>Erase</span></button><button id="notes" aria-pressed="false">${icon("notes")}<span>Notes</span></button><button id="auto" aria-pressed="false" aria-label="Automatic candidates">${icon("auto")}<span>Auto</span></button><button id="hint" aria-label="Hint">${icon("hint")}<span>Hint</span></button></div><div class="number-pad" aria-label="Number pad">${Array.from({ length: 9 }, (_, i) => `<button data-number="${i + 1}" aria-label="Enter ${i + 1}">${i + 1}<span class="left" aria-hidden="true"></span></button>`).join("")}</div><button id="new-game" class="new-game">${icon("new")} New puzzle</button><aside id="install-tip" class="install-tip" hidden><span>♡ Add SansDoku to your Home Screen for a full-screen app.</span><button id="install-how">Show me how</button><button id="install-dismiss" aria-label="Dismiss tip">×</button></aside></section><footer><span class="small-heart">♡</span><span id="footer-message">A little space to slow down.</span><span id="offline-status"></span><button id="update" hidden>Update available</button></footer></main><dialog id="settings-dialog"><div class="dialog-top"><h2>Your little space</h2><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div><section class="player-settings"><div class="profile-row"><div><span class="profile-label">Playing as</span><strong id="player-label" class="profile-name"></strong></div><div class="profile-actions"><button id="edit-nickname" class="profile-edit" aria-label="Change nickname">Edit</button><button id="signin-open" class="profile-edit">Sign in</button><button id="signout" class="profile-edit" hidden>Sign out</button></div></div><p class="metrics-notice">Your nickname, game stats, and online playing status are shared with the app owner. No email needed.</p></section><fieldset class="appearance"><legend>Appearance</legend><div class="theme-options">${["light", "dark", "system", "sans"].map((t) => `<button data-theme-choice="${t}" aria-pressed="${getTheme() === t}">${t === "sans" ? "Sans mode ♡" : t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div></fieldset><fieldset class="appearance"><legend>Helpers</legend><div class="theme-options wrap"><button id="pref-mistakes">Mistake alerts</button><button id="pref-timer">Show timer</button><button id="pref-advance">Auto-advance</button><button id="pref-sound">Finish chime</button></div></fieldset><section class="record"><h3>Your little record</h3><p id="record-text"></p><button type="button" class="profile-edit" id="stats-open-settings">See all my stats</button></section><p>Add SansDoku to your iPhone Home Screen for a full-screen app. <button type="button" class="profile-edit" id="install-open">Show me how</button></p><p id="offline-detail"></p><p>Games are saved on this device. Clearing website data will remove them.</p></dialog><dialog id="stats-dialog" aria-labelledby="stats-title"><div class="dialog-top"><h2 id="stats-title">Your little stats</h2><button class="icon-button" id="close-stats" aria-label="Close stats">×</button></div><div id="stats-body"></div></dialog><dialog id="new-dialog"><h2>A fresh start?</h2><p id="new-text"></p><div class="dialog-actions"><button id="restart-puzzle">Start this puzzle over</button><button id="cancel-new">Keep playing</button><button class="primary" id="confirm-new">New puzzle</button></div></dialog><dialog id="note-dialog" aria-labelledby="note-title"><h2 id="note-title"></h2><p id="note-text" class="note-text"></p><div class="dialog-actions single"><button class="primary" id="note-keep">Keep it ♡</button></div></dialog><dialog id="install-dialog" aria-labelledby="install-title"><div class="dialog-top"><h2 id="install-title">Add to Home Screen</h2><button class="icon-button" id="close-install" aria-label="Close">×</button></div><p id="install-warning" class="install-warning" hidden>It looks like you're not in Safari. On iPhone, only Safari can add apps to the Home Screen, so open this page in Safari first.</p><ol class="install-steps"><li><span class="step-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M7 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg></span><div><strong>Tap the Share button</strong> at the bottom of Safari: the square with an arrow pointing up. If you can't see it, tap the <strong>···</strong> button first.</div></li><li><span class="step-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M12 8.5v7M8.5 12h7"/></svg></span><div><strong>Scroll down and tap "Add to Home Screen".</strong> If you don't see it, tap "View More" first.</div></li><li><span class="step-icon num">3</span><div><strong>Tap "Add"</strong> in the top corner. If you see "Open as Web App", leave it on.</div></li><li><span class="step-icon num">4</span><div><strong>Open SansDoku from your Home Screen</strong> from now on. It opens full screen and works offline ♡</div></li></ol><p class="install-note">The Home Screen app is a fresh start on this phone, so sign in again there (⚙ → Sign in) and your record comes right back. A puzzle you're halfway through in Safari won't move over, so finish it first.</p><div class="dialog-actions single"><button class="primary" id="install-done">Got it ♡</button></div></dialog>`;
+app.innerHTML = `<main class="shell"><header><a class="brand" href="/" aria-label="SansDoku home"><span class="brand-mark">▦</span> SansDoku<span class="brand-dot">.</span></a><div class="header-actions"><button class="icon-button" id="stats-open" aria-label="Open your stats"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button><button class="icon-button" id="settings" aria-label="Open settings"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h8.5M17.5 7H20M4 12h3.5M12.5 12H20M4 17h9.5M18.5 17H20"/><circle cx="15" cy="7" r="2.5"/><circle cx="10" cy="12" r="2.5"/><circle cx="16" cy="17" r="2.5"/></svg></button></div></header><section class="intro"><p class="eyebrow">A LITTLE MOMENT FOR YOU</p><h1>One square at a time.</h1><p class="subtitle">No rush. Just you and a little possibility.</p></section><nav class="difficulties" aria-label="Difficulty">${(["easy", "medium", "hard"] as Difficulty[]).map((d) => `<button data-difficulty="${d}" aria-pressed="${d === difficulty}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</nav><section class="game-area" aria-label="Sudoku game"><div class="game-meta"><span id="progress"></span><span id="clock" class="clock" hidden></span><span id="saved" class="saved"></span></div><div id="board" class="board" role="group" aria-label="Sudoku board"></div><p class="game-message" id="message" role="status" aria-live="polite">Pick a square. Make a little progress.</p><div class="tools"><button id="undo">${icon("undo")}<span>Undo</span></button><button id="erase">${icon("erase")}<span>Erase</span></button><button id="notes" aria-pressed="false">${icon("notes")}<span>Notes</span></button><button id="auto" aria-pressed="false" aria-label="Automatic candidates">${icon("auto")}<span>Auto</span></button><button id="hint" aria-label="Hint">${icon("hint")}<span>Hint</span></button></div><div class="number-pad" aria-label="Number pad">${Array.from({ length: 9 }, (_, i) => `<button data-number="${i + 1}" aria-label="Enter ${i + 1}">${i + 1}<span class="left" aria-hidden="true"></span></button>`).join("")}</div><button id="new-game" class="new-game">${icon("new")} New puzzle</button><aside id="install-tip" class="install-tip" hidden><span>♡ Add SansDoku to your Home Screen for a full-screen app.</span><button id="install-how">Show me how</button><button id="install-dismiss" aria-label="Dismiss tip">×</button></aside></section><footer><span class="small-heart">♡</span><span id="footer-message">A little space to slow down.</span><span id="offline-status"></span><button id="update" hidden>Update available</button></footer></main><dialog id="settings-dialog"><div class="dialog-top"><h2>Your little space</h2><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div><section class="player-settings"><div class="profile-row"><div><span class="profile-label">Playing as</span><strong id="player-label" class="profile-name"></strong></div><div class="profile-actions"><button id="edit-nickname" class="profile-edit" aria-label="Change nickname">Edit</button><button id="signin-open" class="profile-edit">Sign in</button><button id="signout" class="profile-edit" hidden>Sign out</button></div></div><p class="metrics-notice">Your nickname, game stats, and online playing status are shared with the app owner. No email needed.</p></section><fieldset class="appearance"><legend>Appearance</legend><div class="theme-options">${["light", "dark", "system", "sans"].map((t) => `<button data-theme-choice="${t}" aria-pressed="${getTheme() === t}">${t === "sans" ? "Sans mode ♡" : t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div></fieldset><fieldset class="appearance"><legend>Helpers</legend><div class="theme-options wrap"><button id="pref-mistakes">Mistake alerts</button><button id="pref-timer">Show timer</button><button id="pref-advance">Auto-advance</button><button id="pref-sound">Finish chime</button></div></fieldset><section class="record"><h3>Your little record</h3><p id="record-text"></p><button type="button" class="profile-edit" id="stats-open-settings">See all my stats</button></section><p>Add SansDoku to your iPhone Home Screen for a full-screen app. <button type="button" class="profile-edit" id="install-open">Show me how</button></p><p id="offline-detail"></p><p>Games are saved on this device. Clearing website data will remove them.</p></dialog><dialog id="stats-dialog" aria-labelledby="stats-title"><div class="dialog-top"><h2 id="stats-title">Your little stats</h2><button class="icon-button" id="close-stats" aria-label="Close stats">×</button></div><div id="stats-body"></div></dialog><dialog id="new-dialog"><h2>A fresh start?</h2><p id="new-text"></p><div class="dialog-actions"><button id="restart-puzzle">Start this puzzle over</button><button id="cancel-new">Keep playing</button><button class="primary" id="confirm-new">New puzzle</button></div></dialog><dialog id="note-dialog" aria-labelledby="note-title"><p id="note-eyebrow" class="note-eyebrow" hidden>Milestone unlocked ♡</p><h2 id="note-title"></h2><p id="note-text" class="note-text"></p><p id="note-more" class="note-more" hidden><button type="button" class="profile-edit" id="note-see-all">See them in your notes</button></p><div class="dialog-actions single"><button class="primary" id="note-keep">Keep it ♡</button></div></dialog><dialog id="install-dialog" aria-labelledby="install-title"><div class="dialog-top"><h2 id="install-title">Add to Home Screen</h2><button class="icon-button" id="close-install" aria-label="Close">×</button></div><p id="install-warning" class="install-warning" hidden>It looks like you're not in Safari. On iPhone, only Safari can add apps to the Home Screen, so open this page in Safari first.</p><ol class="install-steps"><li><span class="step-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4M7 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg></span><div><strong>Tap the Share button</strong> at the bottom of Safari: the square with an arrow pointing up. If you can't see it, tap the <strong>···</strong> button first.</div></li><li><span class="step-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="M12 8.5v7M8.5 12h7"/></svg></span><div><strong>Scroll down and tap "Add to Home Screen".</strong> If you don't see it, tap "View More" first.</div></li><li><span class="step-icon num">3</span><div><strong>Tap "Add"</strong> in the top corner. If you see "Open as Web App", leave it on.</div></li><li><span class="step-icon num">4</span><div><strong>Open SansDoku from your Home Screen</strong> from now on. It opens full screen and works offline ♡</div></li></ol><p class="install-note">The Home Screen app is a fresh start on this phone, so sign in again there (⚙ → Sign in) and your record comes right back. A puzzle you're halfway through in Safari won't move over, so finish it first.</p><div class="dialog-actions single"><button class="primary" id="install-done">Got it ♡</button></div></dialog>`;
 app.insertAdjacentHTML(
   "beforeend",
   `<dialog id="nickname-dialog"><h2>Your little name</h2><p>What should we call you?</p><form id="nickname-form"><label for="nickname-input">Nickname</label><input id="nickname-input" name="nickname" maxlength="24" autocomplete="nickname" placeholder="Your nickname"><p class="form-error" id="nickname-error" role="alert" hidden>That name is reserved ♡ Try another.</p><p class="metrics-notice">Your nickname, play time, and online playing status are visible only to the app owner. You can play as Guest instead.</p><div class="dialog-actions"><button type="button" id="nickname-guest">Play as Guest</button><button class="primary" type="submit">Let’s play</button></div></form></dialog><dialog id="signin-dialog"><h2>Sign in</h2><p>Optional. Signing in unlocks special things and keeps your stats together on every device.</p><form id="signin-form"><label for="signin-user">Username</label><input id="signin-user" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" required><label for="signin-pass">Password</label><input id="signin-pass" name="password" type="password" autocomplete="current-password" maxlength="100" required><p class="form-error" id="signin-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" id="signin-cancel">Not now</button><button class="primary" type="submit" id="signin-submit">Sign in</button></div></form></dialog>`,
@@ -194,8 +203,7 @@ document.querySelector("#signin-form")!.addEventListener("submit", async (e) => 
   }
   pass.value = "";
   startAccount(result.playerId, result.username);
-  void syncFinishes();
-  void refreshNotes();
+  void checkNotes();
   setTheme("sans");
   signinDialog.close();
   updateProfile();
@@ -213,10 +221,7 @@ void checkSession().then((state) => {
   if (state === "out" && getProfile().account) {
     endAccount();
     updateProfile();
-  } else if (state === "in" && getProfile().account) {
-    void syncFinishes();
-    void checkNotes();
-  }
+  } else if (state === "in" && getProfile().account) void checkNotes();
 });
 document.querySelector<HTMLButtonElement>("#edit-nickname")!.onclick = () => {
   settings.close();
@@ -431,8 +436,10 @@ function finish() {
     saveHistory(history);
     const s = summarize(scope(history, acct));
     note = `Finished in ${formatTime(entry.ms)}${newBest ? " — your best yet ♡" : "."} ${puzzles(s.total)} finished${s.currentStreak > 1 ? ` · ${s.currentStreak} days in a row ♡` : "."}`;
-    if (acct && unlockedIds(list, scope(history, acct)).length > unlockedBefore)
-      note += " A new little note is waiting in your stats ♡";
+    if (acct && unlockedIds(list, scope(history, acct)).length > unlockedBefore) {
+      note += " A new milestone just unlocked ♡";
+      setTimeout(() => whenQuiet(() => startPopups()), 900);
+    }
     if (acct) void syncFinishes();
   }
   finishNote = note;
@@ -442,11 +449,14 @@ function finish() {
   if (sansTheme()) celebrate(note);
 }
 // Keeps her record in step with the account: pull what other phones finished, push ours.
-let syncing = false;
-async function syncFinishes() {
-  if (!signedIn() || syncing || !navigator.onLine) return;
-  syncing = true;
-  try {
+let syncing: Promise<void> | null = null;
+function syncFinishes(): Promise<void> {
+  if (!signedIn() || !navigator.onLine) return Promise.resolve();
+  syncing ??= runSync().finally(() => (syncing = null));
+  return syncing;
+}
+async function runSync() {
+  {
     const remote = await pullFinishes();
     if (!remote) return;
     history = mergeRemote(history, remote);
@@ -459,8 +469,7 @@ async function syncFinishes() {
     saveHistory(history);
     if (statsDialog.open) renderStatsDialog();
     document.querySelector("#record-text")!.textContent = recordText();
-  } finally {
-    syncing = false;
+    updateNewBadge();
   }
 }
 function revealOrHint() {
@@ -552,19 +561,32 @@ function recordText() {
     : "Finish a puzzle to start your record ♡";
 }
 const statsDialog = document.querySelector<HTMLDialogElement>("#stats-dialog")!;
+function unseenCount() {
+  return signedIn() ? unseenItems(inbox(inboxData, myFinishes())).length : 0;
+}
+// A small dot on the header's stats button when there is something new from you.
+function updateNewBadge() {
+  document.querySelector("#stats-open")!.classList.toggle("has-new", unseenCount() > 0);
+}
 function renderStatsDialog() {
   const body = statsDialog.querySelector<HTMLElement>("#stats-body")!;
-  body.innerHTML = renderStats(myFinishes(), statsFilter, signedIn());
-  if (signedIn()) {
-    const together = togetherLine(new Date());
-    if (together) {
-      const p = document.createElement("p");
-      p.className = "together";
-      p.textContent = together;
-      body.prepend(p);
+  if (!signedIn()) statsTab = "stats";
+  if (signedIn() && statsTab === "notes") {
+    body.replaceChildren();
+    renderNotesView(body);
+  } else {
+    body.innerHTML = renderStats(myFinishes(), statsFilter, signedIn());
+    if (signedIn()) {
+      const together = togetherLine(new Date());
+      if (together) {
+        const p = document.createElement("p");
+        p.className = "together";
+        p.textContent = together;
+        body.prepend(p);
+      }
     }
-    renderNotesSection(body);
   }
+  if (signedIn()) body.prepend(sectionTabs());
   body.querySelectorAll<HTMLElement>("[data-readout]").forEach((el) => {
     const show = () => {
       const target = el.closest("svg")!.parentElement!.querySelector("[data-readout-target]");
@@ -586,47 +608,102 @@ function renderStatsDialog() {
       }),
   );
 }
-function renderNotesSection(body: HTMLElement) {
+// Stats | Notes tabs, shown once she is signed in. The Notes tab carries a "new" count.
+function sectionTabs() {
+  const nav = document.createElement("div");
+  nav.className = "stats-sections";
+  nav.setAttribute("role", "group");
+  nav.setAttribute("aria-label", "Stats or notes");
+  const make = (tab: "stats" | "notes", label: string) => {
+    const b = document.createElement("button");
+    b.setAttribute("aria-pressed", String(statsTab === tab));
+    b.textContent = label;
+    if (tab === "notes" && statsTab !== "notes") {
+      const fresh = unseenCount();
+      if (fresh) {
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = String(fresh);
+        b.append(badge);
+      }
+    }
+    b.onclick = () => {
+      statsTab = tab;
+      renderStatsDialog();
+    };
+    return b;
+  };
+  nav.append(make("stats", "Stats"), make("notes", "Notes ♡"));
+  return nav;
+}
+// Everything from you in one place: your notes, the milestones she unlocked, and what's coming.
+function renderNotesView(body: HTMLElement) {
   const items = inbox(inboxData, myFinishes());
-  const seen = loadSeen();
-  const heading = document.createElement("h3");
-  heading.textContent = "Little notes";
-  const list = document.createElement("div");
-  list.className = "notes-list";
-  for (const item of items) {
-    const card = document.createElement("article");
-    const fresh = !seen.includes(item.id);
-    card.className = "note-card" + (fresh ? " fresh" : "");
+  if (!freshAtOpen.size) freshAtOpen = new Set(unseenItems(items).map((i) => i.id));
+  markSeen(items.map((i) => i.id));
+  updateNewBadge();
+  const card = (item: InboxItem) => {
+    const fresh = freshAtOpen.has(item.id);
+    const el = document.createElement("article");
+    el.className = "note-card" + (fresh ? " fresh" : "");
     const title = document.createElement("strong");
     title.textContent = item.title + (fresh ? " · new ♡" : "");
     const text = document.createElement("p");
     text.className = "note-text";
     text.textContent = item.text;
-    card.append(title, text);
-    list.append(card);
+    el.append(title);
+    if (item.at) {
+      const when = document.createElement("span");
+      when.className = "note-date";
+      when.textContent = new Date(item.at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+      el.append(when);
+    }
+    el.append(text);
+    return el;
+  };
+  const group = (heading: string, nodes: Node[]) => {
+    if (!nodes.length) return;
+    const h = document.createElement("h3");
+    h.textContent = heading;
+    const list = document.createElement("div");
+    list.className = "notes-list";
+    list.append(...nodes);
+    body.append(h, list);
+  };
+  group("From you ♡", items.filter((i) => i.id.startsWith("m:")).map(card));
+  group("Milestones", items.filter((i) => !i.id.startsWith("m:")).map(card));
+  const coming = nextLocked(inboxData, myFinishes(), 3).map((hint) => {
+    const p = document.createElement("p");
+    p.className = "note-locked";
+    p.textContent = `A note is waiting · ${hint}`;
+    return p;
+  });
+  group("Coming up", coming);
+  if (!items.length && !coming.length) {
+    const empty = document.createElement("p");
+    empty.className = "stats-empty big";
+    empty.textContent = "Notes and little surprises will gather here ♡";
+    body.append(empty);
   }
-  for (const hint of nextLocked(inboxData, myFinishes())) {
-    const locked = document.createElement("p");
-    locked.className = "note-locked";
-    locked.textContent = `A note is waiting · ${hint}`;
-    list.append(locked);
-  }
-  body.append(heading, list);
 }
-function openStats() {
+function openStats(tab: "stats" | "notes" = "stats") {
   settings.close();
+  if (noteDialog.open) noteDialog.close();
   statsFilter = "all";
+  statsTab = signedIn() ? tab : "stats";
+  freshAtOpen = new Set();
   renderStatsDialog();
   statsDialog.showModal();
   void syncFinishes();
   void refreshNotes().then(() => statsDialog.open && renderStatsDialog());
 }
-document.querySelector<HTMLButtonElement>("#stats-open")!.onclick = openStats;
-document.querySelector<HTMLButtonElement>("#stats-open-settings")!.onclick = openStats;
+document.querySelector<HTMLButtonElement>("#stats-open")!.onclick = () => openStats();
+document.querySelector<HTMLButtonElement>("#stats-open-settings")!.onclick = () => openStats();
 document.querySelector<HTMLButtonElement>("#close-stats")!.onclick = () => statsDialog.close();
-statsDialog.addEventListener("close", () =>
-  markSeen(inbox(inboxData, myFinishes()).map((i) => i.id)),
-);
+statsDialog.addEventListener("close", () => {
+  freshAtOpen = new Set();
+  updateNewBadge();
+});
 document.querySelectorAll<HTMLButtonElement>("[data-difficulty]").forEach(
   (b) =>
     (b.onclick = () => {
@@ -744,24 +821,54 @@ async function refreshNotes() {
   if (!signedIn() || !navigator.onLine) return;
   const fresh = await fetchNotes();
   if (fresh) inboxData = fresh;
+  updateNewBadge();
 }
-function showNextNote() {
-  if (!signedIn() || document.querySelector("dialog[open], .celebration")) return;
+// Popups: unseen notes and milestones appear one after another (at most three at a time);
+// whatever is left stays marked "new" in her Notes tab.
+let popupQueue: InboxItem[] = [];
+let popupMore = 0;
+function startPopups(max = 3) {
+  if (!signedIn() || noteDialog.open || document.querySelector("dialog[open], .celebration")) return;
   const items = unseenItems(inbox(inboxData, myFinishes()));
-  const item = items.find((i) => i.id.startsWith("m:")) || items[0];
+  popupQueue = items.slice(0, max);
+  popupMore = items.length - popupQueue.length;
+  nextPopup();
+}
+function nextPopup() {
+  const item = popupQueue.shift();
   if (!item) return;
   shownNoteId = item.id;
+  const milestone = !item.id.startsWith("m:");
+  document.querySelector<HTMLElement>("#note-eyebrow")!.hidden = !milestone;
   document.querySelector("#note-title")!.textContent = item.title;
   document.querySelector("#note-text")!.textContent = item.text;
+  document.querySelector<HTMLElement>("#note-more")!.hidden = popupQueue.length > 0 || popupMore <= 0;
+  document.querySelector("#note-keep")!.textContent = popupQueue.length ? "Next ♡" : "Keep it ♡";
   noteDialog.showModal();
 }
 document.querySelector<HTMLButtonElement>("#note-keep")!.onclick = () => {
   markSeen([shownNoteId]);
   noteDialog.close();
+  updateNewBadge();
+  if (popupQueue.length) setTimeout(nextPopup, 250);
 };
+document.querySelector<HTMLButtonElement>("#note-see-all")!.onclick = () => {
+  markSeen([shownNoteId]);
+  popupQueue = [];
+  noteDialog.close();
+  openStats("notes");
+};
+// Wait until the celebration and any dialog are gone, then run `then`.
+function whenQuiet(then: () => void, tries = 30) {
+  if (!document.querySelector("dialog[open], .celebration")) return then();
+  if (tries > 0) setTimeout(() => whenQuiet(then, tries - 1), 400);
+}
+// One moment to decide what is new: her record and your notes are both brought up to date first,
+// so the popups come as a single tidy sequence.
 async function checkNotes() {
-  await refreshNotes();
-  showNextNote();
+  await Promise.all([syncFinishes(), refreshNotes()]);
+  updateNewBadge();
+  whenQuiet(() => startPopups());
 }
 document.addEventListener("pointerdown", unlockAudio, { once: true });
 document.addEventListener("visibilitychange", () => {
