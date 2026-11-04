@@ -128,7 +128,7 @@ function gardenSvg(finishes: Finish[]): string {
 export function renderStats(finishes: Finish[], selected: Difficulty, synced: boolean): string {
   const s = summarize(finishes);
   const note = synced
-    ? "Saved to your account ♡ it follows you to any phone."
+    ? "Saved to your account · it follows you to any phone ♡"
     : "Saved on this device.";
   if (!s.total)
     return `<p class="stats-note">${note}</p><p class="stats-empty big">Finish a puzzle and your first flower blooms here ♡</p>`;
@@ -145,7 +145,7 @@ export function renderStats(finishes: Finish[], selected: Difficulty, synced: bo
     .reverse()
     .map(
       (f) =>
-        `<tr><th scope="row">${dateText(f.at)}</th><td>${name(f.difficulty)}</td><td>${f.ms >= 1000 ? formatTime(f.ms) : "–"}</td><td>${f.hints ? "hint" : ""}</td></tr>`,
+        `<tr><th scope="row">${dateText(f.at)}</th><td>${name(f.difficulty)}${f.hints ? " · hint" : ""}</td><td>${f.ms >= 1000 ? formatTime(f.ms) : "–"}</td></tr>`,
     )
     .join("");
   return `<p class="stats-note">${note}</p>
@@ -161,5 +161,5 @@ ${weekChart(s)}
 <h3>By difficulty</h3>
 <table class="stats-table"><thead><tr><th></th><th scope="col">Done</th><th scope="col">Best</th><th scope="col">Average</th></tr></thead><tbody>${rows}</tbody></table>
 <h3>Recent puzzles</h3>
-<table class="stats-table"><tbody>${recent}</tbody></table>`;
+<table class="stats-table recent"><tbody>${recent}</tbody></table>`;
 }

@@ -162,11 +162,6 @@ export function restartPuzzle(game: Game) {
   game.values = game.givens.slice();
   game.notes = Array.from({ length: 81 }, () => []);
 }
-export function fillCandidates(game: Game) {
-  if (completed(game.values)) return;
-  remember(game);
-  game.notes = game.values.map((_, i) => candidates(game.values, i));
-}
 export function toggleAutoCandidates(game: Game): boolean {
   if (completed(game.values) && !game.autoCandidates) return false;
   remember(game);

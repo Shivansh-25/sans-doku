@@ -8,7 +8,6 @@ import {
   candidates,
   enter,
   undo,
-  fillCandidates,
   gameFromPuzzle,
   toggleAutoCandidates,
   visibleNotes,
@@ -40,14 +39,14 @@ test("candidates obey rows, columns and boxes; givens cannot change", () => {
   const given = g.givens.findIndex(Boolean);
   assert.equal(enter(g, given, 0), false);
 });
-test("notes, fill and undo preserve previous state", () => {
+test("notes and undo preserve previous state", () => {
   const g = createGame("easy");
   const i = g.values.findIndex((n) => !n);
   enter(g, i, 1, true);
   assert.deepEqual(g.notes[i], [1]);
   const before = JSON.stringify({ values: g.values, notes: g.notes });
-  fillCandidates(g);
-  assert.deepEqual(g.notes[i], candidates(g.values, i));
+  enter(g, i, 2, true);
+  assert.deepEqual(g.notes[i], [1, 2]);
   undo(g);
   assert.equal(JSON.stringify({ values: g.values, notes: g.notes }), before);
   enter(g, i, 2);
