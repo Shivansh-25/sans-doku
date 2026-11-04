@@ -79,7 +79,7 @@ Each game has separate cumulative daily snapshots. Repeated/offline uploads upda
 
 ## Optional `sans` account
 
-Sign-in is optional; guests play exactly as before. Settings → Sign in accepts username `sans` and a shared password kept as a Worker secret, never in the repo:
+Sign-in is optional; guests play exactly as before (the `admin` test account is described at the end). Settings → Sign in accepts username `sans` and a shared password kept as a Worker secret, never in the repo:
 
 ```sh
 npx wrangler secret put SANS_PASSWORD
@@ -98,3 +98,21 @@ npx wrangler d1 migrations apply sansdoku-metrics --remote
 ```
 
 The admin dashboard is unchanged. To clear her history: `npx wrangler d1 execute sansdoku-metrics --remote --command "DELETE FROM account_finishes;"`.
+
+### Owner test account
+
+A second optional account, username `admin`, with its own secret so you can try everything (Sans mode, stats, notes) without touching her record:
+
+```sh
+npx wrangler secret put TESTER_PASSWORD
+```
+
+(at least 6 characters). It has its own player ID and its own saved finishes, so her stats never change when you play as `admin`; it appears in the dashboard as a separate player named `admin`. It can read the same notes you send her, but only changes its own copy of “seen”. It does not open the admin dashboard, which keeps its separate email and password login.
+
+### Notes for her
+
+The admin page has a “Notes for sans” section: send a message (shown once on her next open while signed in and listed under Stats → Little notes) and edit the six milestone texts. This needs migration `0005_notes.sql`:
+
+```sh
+npx wrangler d1 migrations apply sansdoku-metrics --remote
+```

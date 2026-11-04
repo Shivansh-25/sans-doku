@@ -1,13 +1,12 @@
-export type Prefs = { mistakes: boolean; timer: boolean };
+export type Prefs = { mistakes: boolean; timer: boolean; advance: boolean; sound: boolean };
 const key = "sansdoku:prefs:v1";
-let prefs: Prefs = { mistakes: true, timer: false };
+const defaults: Prefs = { mistakes: true, timer: false, advance: false, sound: true };
+let prefs: Prefs = { ...defaults };
 try {
   const v = JSON.parse(localStorage.getItem(key) || "null");
   if (v && typeof v === "object")
-    prefs = {
-      mistakes: typeof v.mistakes === "boolean" ? v.mistakes : true,
-      timer: typeof v.timer === "boolean" ? v.timer : false,
-    };
+    for (const name of Object.keys(defaults) as (keyof Prefs)[])
+      if (typeof v[name] === "boolean") prefs[name] = v[name];
 } catch {}
 export const getPrefs = (): Prefs => prefs;
 export function setPref(name: keyof Prefs, value: boolean) {

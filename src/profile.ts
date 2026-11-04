@@ -2,7 +2,7 @@ export type Profile = {
   id: string;
   nickname: string;
   chosen: boolean;
-  account?: string;
+  account?: "sans" | "admin";
   deviceId?: string;
 };
 const uuid =
@@ -21,7 +21,7 @@ try {
     saved.nickname.length <= 24 &&
     !/[\u0000-\u001f\u007f]/.test(saved.nickname) &&
     typeof saved.chosen === "boolean" &&
-    (saved.account === undefined || saved.account === "sans") &&
+    (saved.account === undefined || saved.account === "sans" || saved.account === "admin") &&
     (saved.deviceId === undefined || uuid.test(saved.deviceId))
   ) {
     profile = saved;
@@ -36,9 +36,10 @@ try {
   localStorage.setItem(key, JSON.stringify(profile));
 } catch {}
 export const getProfile = () => profile;
-export const canUseSans = () => profile.account === "sans";
+// Both accounts get Sans mode; "admin" is the owner's test account.
+export const canUseSans = () => Boolean(profile.account);
 export function reservedName(value: string) {
-  return value.trim().toLowerCase() === "sans";
+  return ["sans", "admin"].includes(value.trim().toLowerCase());
 }
 function store() {
   try {
@@ -46,14 +47,14 @@ function store() {
   } catch {}
 }
 // Signing in adopts the account's stable player id so stats follow her across devices.
-export function startAccount(playerId: string) {
+export function startAccount(playerId: string, username: "sans" | "admin") {
   profile = {
     ...profile,
     deviceId: profile.deviceId || profile.id,
     id: playerId,
-    nickname: "sans",
+    nickname: username,
     chosen: true,
-    account: "sans",
+    account: username,
   };
   store();
 }

@@ -1,7 +1,6 @@
-// Optional sign-in for the shared "sans" account. Guests never need this.
+// Optional sign-in for the shared "sans" account and a separate "admin" test account. Guests never need this.
 const accountCookieName = "__Host-sansdoku-session";
 const accountSessionSeconds = 365 * 86400;
-const accountUser = "sans";
 const accountEnc = new TextEncoder();
 const accountHeaders = {
   "Content-Type": "application/json",
@@ -22,21 +21,26 @@ const accountUnb64 = (text) =>
   Uint8Array.from(atob(text.replaceAll("-", "+").replaceAll("_", "/")), (c) =>
     c.charCodeAt(0),
   );
-const accountConfigured = (env) =>
-  typeof env.SANS_PASSWORD === "string" && env.SANS_PASSWORD.length >= 6;
-// Changing the password invalidates every existing session.
-const accountKey = (env) =>
+// Each account has its own secret, so a test account never touches the real one's data.
+const accountPasswordFor = (env, user) => {
+  const secret = user === "sans" ? env.SANS_PASSWORD : user === "admin" ? env.TESTER_PASSWORD : undefined;
+  return typeof secret === "string" && secret.length >= 6 ? secret : undefined;
+};
+const accountNames = ["sans", "admin"];
+const accountConfigured = (env) => accountNames.some((u) => accountPasswordFor(env, u));
+// Changing a password signs that account out everywhere.
+const accountKey = (env, user) =>
   crypto.subtle.importKey(
     "raw",
-    accountEnc.encode("sansdoku-session-v1:" + env.SANS_PASSWORD),
+    accountEnc.encode(`sansdoku-session-v1:${user}:` + accountPasswordFor(env, user)),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"],
   );
-// A stable, UUIDv4-shaped id so her stats follow her across devices.
-export async function accountPlayerId() {
+// A stable, UUIDv4-shaped id so an account's stats follow it across devices.
+export async function accountPlayerId(user) {
   const h = new Uint8Array(
-    await crypto.subtle.digest("SHA-256", accountEnc.encode("sansdoku-account:" + accountUser)),
+    await crypto.subtle.digest("SHA-256", accountEnc.encode("sansdoku-account:" + user)),
   );
   const hex = [...h.slice(0, 16)].map((b) => b.toString(16).padStart(2, "0"));
   hex[6] = "4" + hex[6][1];
@@ -55,23 +59,23 @@ export async function sessionUser(request, env) {
   try {
     const [payload, signature, extra] = token.split(".");
     if (extra !== undefined || !payload || !signature) return null;
+    const claims = JSON.parse(new TextDecoder().decode(accountUnb64(payload)));
+    if (!accountNames.includes(claims.u) || !accountPasswordFor(env, claims.u)) return null;
     if (
       !(await crypto.subtle.verify(
         "HMAC",
-        await accountKey(env),
+        await accountKey(env, claims.u),
         accountUnb64(signature),
         accountEnc.encode(payload),
       ))
     )
       return null;
-    const claims = JSON.parse(new TextDecoder().decode(accountUnb64(payload)));
     const now = Math.floor(Date.now() / 1000);
-    return claims.u === accountUser &&
-      Number.isSafeInteger(claims.iat) &&
+    return Number.isSafeInteger(claims.iat) &&
       Number.isSafeInteger(claims.exp) &&
       claims.iat <= now &&
       claims.exp > now
-      ? accountUser
+      ? claims.u
       : null;
   } catch {
     return null;
@@ -84,7 +88,7 @@ export async function handleAccount(request, env) {
   if (url.pathname === "/api/session") {
     if (request.method !== "GET") return accountReply({ error: "Method not allowed" }, 405);
     const user = await sessionUser(request, env);
-    return accountReply(user ? { username: user, playerId: await accountPlayerId() } : { username: null });
+    return accountReply(user ? { username: user, playerId: await accountPlayerId(user) } : { username: null });
   }
   if (url.pathname === "/api/stats") return handleAccountStats(request, env, url);
   if (url.pathname !== "/api/login" && url.pathname !== "/api/logout") return null;
@@ -107,7 +111,7 @@ export async function handleAccount(request, env) {
         bucket = Math.floor(now / 900000);
       const ip = request.headers.get("CF-Connecting-IP") || "local";
       const ipHash = accountB64(
-        await crypto.subtle.sign("HMAC", await accountKey(env), accountEnc.encode("account-rate:" + ip)),
+        await crypto.subtle.sign("HMAC", await accountKey(env, accountNames.find((u) => accountPasswordFor(env, u))), accountEnc.encode("account-rate:" + ip)),
       );
       const results = await env.DB.batch([
         env.DB.prepare("DELETE FROM admin_login_attempts WHERE expires_at <= ?").bind(now),
@@ -125,19 +129,21 @@ export async function handleAccount(request, env) {
     }
     const digest = async (v) =>
       new Uint8Array(await crypto.subtle.digest("SHA-256", accountEnc.encode(v)));
+    const name = user.trim().toLowerCase();
+    const known = accountPasswordFor(env, name);
     const supplied = await digest(password),
-      expected = await digest(env.SANS_PASSWORD);
+      expected = await digest(known ?? "not-an-account");
     let difference = 0;
     for (let i = 0; i < expected.length; i++) difference |= supplied[i] ^ expected[i];
-    if (difference !== 0 || user.trim().toLowerCase() !== accountUser)
+    if (difference !== 0 || !known)
       return accountReply({ error: "Username or password is incorrect." }, 401);
     const iat = Math.floor(Date.now() / 1000);
-    const payload = accountB64(accountEnc.encode(JSON.stringify({ u: accountUser, iat, exp: iat + accountSessionSeconds })));
+    const payload = accountB64(accountEnc.encode(JSON.stringify({ u: name, iat, exp: iat + accountSessionSeconds })));
     const signature = accountB64(
-      await crypto.subtle.sign("HMAC", await accountKey(env), accountEnc.encode(payload)),
+      await crypto.subtle.sign("HMAC", await accountKey(env, name), accountEnc.encode(payload)),
     );
     return accountReply(
-      { username: accountUser, playerId: await accountPlayerId() },
+      { username: name, playerId: await accountPlayerId(name) },
       200,
       { "Set-Cookie": accountCookie(`${payload}.${signature}`) },
     );

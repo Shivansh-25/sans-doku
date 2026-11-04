@@ -1,4 +1,6 @@
-export type SignIn = { ok: true; playerId: string } | { ok: false; message: string };
+export type SignIn =
+  | { ok: true; playerId: string; username: "sans" | "admin" }
+  | { ok: false; message: string };
 export async function signIn(username: string, password: string): Promise<SignIn> {
   try {
     const r = await fetch("/api/login", {
@@ -8,8 +10,8 @@ export async function signIn(username: string, password: string): Promise<SignIn
       signal: AbortSignal.timeout(8000),
     });
     const data = await r.json().catch(() => ({}));
-    if (r.ok && typeof data.playerId === "string")
-      return { ok: true, playerId: data.playerId };
+    if (r.ok && typeof data.playerId === "string" && (data.username === "sans" || data.username === "admin"))
+      return { ok: true, playerId: data.playerId, username: data.username };
     return { ok: false, message: data.error || "Couldn't sign in. Try again." };
   } catch {
     return { ok: false, message: "Signing in needs an internet connection." };

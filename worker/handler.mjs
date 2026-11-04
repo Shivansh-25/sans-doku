@@ -1,5 +1,6 @@
 import { handleMetrics } from "./metrics.mjs";
 import { handleAccount } from "./account.mjs";
+import { handleNotes } from "./notes.mjs";
 const difficulties = new Set(["easy", "medium", "hard"]);
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -11,6 +12,8 @@ const json = (body, status = 200) =>
   });
 export async function handleRequest(request, env, assets) {
   const url = new URL(request.url);
+  if (url.pathname === "/api/notes" || url.pathname === "/admin/api/notes")
+    return handleNotes(request, env);
   if (url.pathname === "/api/metrics" || url.pathname === "/admin.html" || url.pathname === "/admin" || url.pathname.startsWith("/admin/"))
     return handleMetrics(request, env, assets);
   if (["/api/login", "/api/logout", "/api/session", "/api/stats"].includes(url.pathname))

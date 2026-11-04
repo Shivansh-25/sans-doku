@@ -87,3 +87,32 @@ test("finished puzzles sync only for the signed-in account and are idempotent", 
   const cross = await call(e, "/api/stats", { method: "POST", headers: { Cookie: cookie, Origin: "https://evil.test" }, body: JSON.stringify({ finishes: [] }) });
   assert.equal(cross.status, 403);
 });
+
+test("the admin test account is separate: own id, own stats, own password", async () => {
+  const testerPassword = "test-only-tester-password";
+  const e = env({ TESTER_PASSWORD: testerPassword });
+  const asSans = await login(e);
+  const asTester = await login(e, { username: "Admin", password: testerPassword });
+  assert.equal(asTester.status, 200);
+  const sansBody = await asSans.json();
+  const testerBody = await asTester.json();
+  assert.equal(testerBody.username, "admin");
+  assert.notEqual(testerBody.playerId, sansBody.playerId);
+  // Each password only opens its own account.
+  assert.equal((await login(e, { username: "sans", password: testerPassword })).status, 401);
+  assert.equal((await login(e, { username: "admin", password })).status, 401);
+  const sansCookie = cookieOf(await login(e));
+  const testerCookie = cookieOf(await login(e, { username: "admin", password: testerPassword }));
+  const finish = { id: "tester-game-01", difficulty: "easy", at: Date.now() - 1000, ms: 90000, hints: 0 };
+  const post = (cookie: string) => call(e, "/api/stats", { method: "POST", headers: { Cookie: cookie }, body: JSON.stringify({ finishes: [finish] }) });
+  assert.equal((await post(testerCookie)).status, 200);
+  const get = async (cookie: string) => (await (await call(e, "/api/stats", { headers: { Cookie: cookie } })).json()).finishes.length;
+  assert.equal(await get(testerCookie), 1);
+  assert.equal(await get(sansCookie), 0); // testing never touches her record
+  // Rotating the tester password signs out only the tester.
+  const rotated = { ...e, TESTER_PASSWORD: "another-test-password" };
+  assert.deepEqual(await (await call(rotated, "/api/session", { headers: { Cookie: testerCookie } })).json(), { username: null });
+  assert.equal((await (await call(rotated, "/api/session", { headers: { Cookie: sansCookie } })).json()).username, "sans");
+  // Without a tester secret the account does not exist.
+  assert.equal((await login(env(), { username: "admin", password: testerPassword })).status, 401);
+});
