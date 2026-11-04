@@ -32,3 +32,30 @@ export async function checkSession(): Promise<"in" | "out" | "unknown"> {
     return "unknown";
   }
 }
+import type { Finish } from "./stats";
+// null when offline or signed out, so callers simply try again later.
+export async function pullFinishes(): Promise<Pick<Finish, "id" | "difficulty" | "at" | "ms" | "hints">[] | null> {
+  try {
+    const r = await fetch("/api/stats", { cache: "no-store", signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const data = await r.json();
+    return Array.isArray(data.finishes) ? data.finishes : null;
+  } catch {
+    return null;
+  }
+}
+export async function pushFinishes(finishes: Finish[]): Promise<boolean> {
+  try {
+    const r = await fetch("/api/stats", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        finishes: finishes.map(({ id, difficulty, at, ms, hints }) => ({ id, difficulty, at, ms, hints })),
+      }),
+      signal: AbortSignal.timeout(8000),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}

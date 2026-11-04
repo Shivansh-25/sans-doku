@@ -88,3 +88,13 @@ npx wrangler secret put SANS_PASSWORD
 (at least 6 characters; changing it signs everyone out). A successful sign-in sets a signed, HttpOnly, 1-year cookie and the device remembers "signed in" so Sans mode keeps working offline. The app re-checks the session whenever it opens online and only signs the device out when the server explicitly says the session is gone.
 
 Signing in switches the device to a fixed player ID for the account, so the dashboard shows her under one name (`sans`) across devices. Earlier plays stay under the old device ID. Sign-in attempts are rate limited (10 per 15 minutes per keyed IP hash, in the existing `admin_login_attempts` table). Admin access is unchanged and separate. For local preview, put `SANS_PASSWORD` in `.env.local`.
+
+### Account stats
+
+While signed in, each finished puzzle (id, difficulty, finish time, active play time, hints used) is saved to the `account_finishes` table through `/api/stats` (signed-in only, idempotent by id, validated and capped at 100 per request). Her phone pushes anything unsent and pulls what other devices finished, so her streaks, bests and history match everywhere. Run the migration before deploying:
+
+```sh
+npx wrangler d1 migrations apply sansdoku-metrics --remote
+```
+
+The admin dashboard is unchanged. To clear her history: `npx wrangler d1 execute sansdoku-metrics --remote --command "DELETE FROM account_finishes;"`.
