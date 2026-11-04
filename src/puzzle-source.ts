@@ -1,4 +1,3 @@
-import bank from "./puzzles.json";
 import { createGame, gameFromPuzzle, type Game, type Difficulty } from "./game";
 const reserveKey = (d: Difficulty) => `sansdoku:reserve:v1:${d}`;
 const valid = (p: unknown): p is string =>
