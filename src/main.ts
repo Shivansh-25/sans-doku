@@ -47,6 +47,7 @@ let armed = 0,
   clock = new PlayClock(Date.now()),
   solutionKey = "",
   solutionCache: number[] | null = null;
+const puzzles = (n: number) => `${n} ${n === 1 ? "puzzle" : "puzzles"}`;
 const sansTheme = () => getTheme() === "sans";
 const setMessage = (text: string) =>
   (document.querySelector("#message")!.textContent = text);
@@ -332,7 +333,7 @@ function finish() {
     );
     saveStats(result.stats);
     const streak = currentStreak(result.stats);
-    note = `Finished in ${formatTime(game.playMs || 0)}${result.newBest ? " — your best yet ♡" : "."} ${total(result.stats)} puzzles finished${streak > 1 ? ` · ${streak} days in a row ♡` : "."}`;
+    note = `Finished in ${formatTime(game.playMs || 0)}${result.newBest ? " — your best yet ♡" : "."} ${puzzles(total(result.stats))} finished${streak > 1 ? ` · ${streak} days in a row ♡` : "."}`;
   }
   finishNote = note;
   persist();
@@ -423,8 +424,8 @@ function recordText() {
     .filter((d) => stats.best[d])
     .map((d) => `${d} ${formatTime(stats.best[d]!)}`);
   return total(stats)
-    ? `${total(stats)} puzzles finished${streak > 1 ? ` · ${streak} days in a row ♡` : ""}${best.length ? ` · best: ${best.join(", ")}` : ""}`
-    : "Finish a puzzle and your little record starts here ♡";
+    ? `${puzzles(total(stats))} finished${streak > 1 ? ` · ${streak} days in a row ♡` : ""}${best.length ? ` · best: ${best.join(", ")}` : ""}`
+    : "Finish a puzzle to start your record ♡";
 }
 document.querySelectorAll<HTMLButtonElement>("[data-difficulty]").forEach(
   (b) =>
