@@ -250,7 +250,41 @@ h1 {
 }
 .cell.selected {
   background: var(--selection);
-  box-shadow: inset 0 0 0 2px var(--selection-border);
+}
+/* The ring floats 1px inside the cell so it never merges with the grid lines or the board's border. */
+.cell.selected::after,
+.cell.hint::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border: 2px solid var(--selection-border);
+  border-radius: 3px;
+  pointer-events: none;
+}
+/* Corner cells follow the board's rounded corner (board radius 8px minus its 2px border). */
+.cell:nth-child(1) {
+  border-top-left-radius: 6px;
+}
+.cell:nth-child(9) {
+  border-top-right-radius: 6px;
+}
+.cell:nth-child(73) {
+  border-bottom-left-radius: 6px;
+}
+.cell:nth-child(81) {
+  border-bottom-right-radius: 6px;
+}
+.cell:nth-child(1)::after {
+  border-top-left-radius: 5px;
+}
+.cell:nth-child(9)::after {
+  border-top-right-radius: 5px;
+}
+.cell:nth-child(73)::after {
+  border-bottom-left-radius: 5px;
+}
+.cell:nth-child(81)::after {
+  border-bottom-right-radius: 5px;
 }
 .cell.conflict {
   color: var(--danger);
@@ -667,7 +701,6 @@ summary {
   background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 .cell.hint {
-  box-shadow: inset 0 0 0 2px var(--selection-border);
   background: var(--selection);
 }
 .record h3 {
