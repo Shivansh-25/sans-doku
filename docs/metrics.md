@@ -1,6 +1,6 @@
 # Nicknames, metrics, and private admin access
 
-SansDoku asks for an optional nickname on first use. Guest play works too. Change it in Settings. Only the trimmed nickname `sans` (case insensitive) makes Sans mode available. Changing to another nickname returns a selected Sans theme to System and clears its celebration.
+SansDoku asks for an optional nickname on first use. Guest play works too. Change it in Settings. Sans mode is unlocked only by signing in as the optional `sans` account (see below); the nickname `sans` is reserved. Signing out returns a selected Sans theme to System and clears its celebration.
 
 A random device ID distinguishes players; nicknames are self-selected, not verified identities. Another device or cleared website data creates another player. Same-name players remain separate in the dashboard. Nickname changes keep the same player ID.
 
@@ -76,3 +76,15 @@ The database and dashboard are deployed. Set the `ADMIN_PASSWORD` Worker secret 
 Time is split into day buckets using **Asia/Kolkata (India time)**, including midnight crossings. After selecting a player, the dashboard shows their daily/weekly/monthly play time, most active date, and average play time per day/week/month for the selected range. Expand the three breakdown sections for date-level values. Weeks start Monday. Averages include zero-play days and all calendar weeks/months touched by the range; the first/last week or month may be partial. Daily history starts with this release and cannot be reconstructed from older total-only summaries.
 
 Each game has separate cumulative daily snapshots. Repeated/offline uploads update the maximum recorded daily time instead of adding it again. Offline snapshots sync when online, and only changed days are written. The client retains up to the most recent 366 tracked days per puzzle for sync; previously synced older days stay in D1.
+
+## Optional `sans` account
+
+Sign-in is optional; guests play exactly as before. Settings → Sign in accepts username `sans` and a shared password kept as a Worker secret, never in the repo:
+
+```sh
+npx wrangler secret put SANS_PASSWORD
+```
+
+(at least 6 characters; changing it signs everyone out). A successful sign-in sets a signed, HttpOnly, 1-year cookie and the device remembers "signed in" so Sans mode keeps working offline. The app re-checks the session whenever it opens online and only signs the device out when the server explicitly says the session is gone.
+
+Signing in switches the device to a fixed player ID for the account, so the dashboard shows her under one name (`sans`) across devices. Earlier plays stay under the old device ID. Sign-in attempts are rate limited (10 per 15 minutes per keyed IP hash, in the existing `admin_login_attempts` table). Admin access is unchanged and separate. For local preview, put `SANS_PASSWORD` in `.env.local`.

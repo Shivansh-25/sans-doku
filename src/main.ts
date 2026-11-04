@@ -18,7 +18,15 @@ import { load, save } from "./storage";
 import { newPuzzle, replenish } from "./puzzle-source";
 import { getTheme, setTheme, type Theme } from "./theme";
 import { celebrate, clearCelebration } from "./celebration";
-import { getProfile, setNickname, canUseSans } from "./profile";
+import {
+  getProfile,
+  setNickname,
+  canUseSans,
+  reservedName,
+  startAccount,
+  endAccount,
+} from "./profile";
+import { signIn, signOut, checkSession } from "./account";
 import { touchMetrics, pauseMetrics } from "./metrics";
 import { PlayClock } from "./play-clock";
 import { getPrefs, setPref } from "./prefs";
@@ -99,10 +107,10 @@ const icon = (name: string) =>
     settings: "⚙",
     new: "＋",
   })[name] || "";
-app.innerHTML = `<main class="shell"><header><a class="brand" href="/" aria-label="SansDoku home"><span class="brand-mark">▦</span> SansDoku<span class="brand-dot">.</span></a><button class="icon-button" id="settings" aria-label="Open settings">${icon("settings")}</button></header><section class="intro"><p class="eyebrow">A LITTLE MOMENT FOR YOU</p><h1>One square at a time.</h1><p class="subtitle">No rush. Just you and a little possibility.</p></section><nav class="difficulties" aria-label="Difficulty">${(["easy", "medium", "hard"] as Difficulty[]).map((d) => `<button data-difficulty="${d}" aria-pressed="${d === difficulty}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</nav><section class="game-area" aria-label="Sudoku game"><div class="game-meta"><span id="progress"></span><span id="clock" class="clock" hidden></span><span id="saved" class="saved"></span></div><div id="board" class="board" role="group" aria-label="Sudoku board"></div><p class="game-message" id="message" role="status" aria-live="polite">Pick a square. Make a little progress.</p><div class="tools"><button id="undo">${icon("undo")}<span>Undo</span></button><button id="erase">${icon("erase")}<span>Erase</span></button><button id="notes" aria-pressed="false">${icon("notes")}<span>Notes</span></button><button id="auto" aria-pressed="false" aria-label="Automatic candidates">${icon("auto")}<span>Auto</span></button><button id="hint" aria-label="Hint">${icon("hint")}<span>Hint</span></button></div><div class="number-pad" aria-label="Number pad">${Array.from({ length: 9 }, (_, i) => `<button data-number="${i + 1}" aria-label="Enter ${i + 1}">${i + 1}<span class="left" aria-hidden="true"></span></button>`).join("")}</div><button id="new-game" class="new-game">${icon("new")} New puzzle</button></section><footer><span class="small-heart">♡</span><span id="footer-message">A little space to slow down.</span><span id="offline-status"></span><button id="update" hidden>Update available</button></footer></main><dialog id="settings-dialog"><div class="dialog-top"><h2>Your little space</h2><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div><section class="player-settings"><div class="profile-row"><div><span class="profile-label">Playing as</span><strong id="player-label" class="profile-name"></strong></div><button id="edit-nickname" class="profile-edit" aria-label="Change nickname">Edit</button></div><p class="metrics-notice">Your nickname, game stats, and online playing status are shared with the app owner. No email needed.</p></section><fieldset class="appearance"><legend>Appearance</legend><div class="theme-options">${["light", "dark", "system", "sans"].map((t) => `<button data-theme-choice="${t}" aria-pressed="${getTheme() === t}">${t === "sans" ? "Sans mode ♡" : t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div></fieldset><fieldset class="appearance"><legend>Helpers</legend><div class="theme-options"><button id="pref-mistakes">Mistake alerts</button><button id="pref-timer">Show timer</button></div></fieldset><section class="record"><h3>Your little record</h3><p id="record-text"></p></section><p>On iPhone, open in Safari, tap Share, then Add to Home Screen.</p><p id="offline-detail"></p><p>Games are saved on this device. Clearing website data will remove them.</p><details><summary>A little shortcut</summary><p>Tap Auto (or long-press Notes) to toggle automatic candidates. They update as you play. Turn them off to return to your manual notes. Writing a manual note also turns them off.</p><button class="primary" id="fill-candidates">Fill candidates</button></details></dialog><dialog id="new-dialog"><h2>A fresh start?</h2><p>This replaces your saved ${difficulty} puzzle. Your other difficulties stay saved.</p><div class="dialog-actions"><button id="cancel-new">Keep playing</button><button class="primary" id="confirm-new">New puzzle</button></div></dialog>`;
+app.innerHTML = `<main class="shell"><header><a class="brand" href="/" aria-label="SansDoku home"><span class="brand-mark">▦</span> SansDoku<span class="brand-dot">.</span></a><button class="icon-button" id="settings" aria-label="Open settings">${icon("settings")}</button></header><section class="intro"><p class="eyebrow">A LITTLE MOMENT FOR YOU</p><h1>One square at a time.</h1><p class="subtitle">No rush. Just you and a little possibility.</p></section><nav class="difficulties" aria-label="Difficulty">${(["easy", "medium", "hard"] as Difficulty[]).map((d) => `<button data-difficulty="${d}" aria-pressed="${d === difficulty}">${d[0].toUpperCase() + d.slice(1)}</button>`).join("")}</nav><section class="game-area" aria-label="Sudoku game"><div class="game-meta"><span id="progress"></span><span id="clock" class="clock" hidden></span><span id="saved" class="saved"></span></div><div id="board" class="board" role="group" aria-label="Sudoku board"></div><p class="game-message" id="message" role="status" aria-live="polite">Pick a square. Make a little progress.</p><div class="tools"><button id="undo">${icon("undo")}<span>Undo</span></button><button id="erase">${icon("erase")}<span>Erase</span></button><button id="notes" aria-pressed="false">${icon("notes")}<span>Notes</span></button><button id="auto" aria-pressed="false" aria-label="Automatic candidates">${icon("auto")}<span>Auto</span></button><button id="hint" aria-label="Hint">${icon("hint")}<span>Hint</span></button></div><div class="number-pad" aria-label="Number pad">${Array.from({ length: 9 }, (_, i) => `<button data-number="${i + 1}" aria-label="Enter ${i + 1}">${i + 1}<span class="left" aria-hidden="true"></span></button>`).join("")}</div><button id="new-game" class="new-game">${icon("new")} New puzzle</button></section><footer><span class="small-heart">♡</span><span id="footer-message">A little space to slow down.</span><span id="offline-status"></span><button id="update" hidden>Update available</button></footer></main><dialog id="settings-dialog"><div class="dialog-top"><h2>Your little space</h2><button class="icon-button" id="close-settings" aria-label="Close settings">×</button></div><section class="player-settings"><div class="profile-row"><div><span class="profile-label">Playing as</span><strong id="player-label" class="profile-name"></strong></div><div class="profile-actions"><button id="edit-nickname" class="profile-edit" aria-label="Change nickname">Edit</button><button id="signin-open" class="profile-edit">Sign in</button><button id="signout" class="profile-edit" hidden>Sign out</button></div></div><p class="metrics-notice">Your nickname, game stats, and online playing status are shared with the app owner. No email needed.</p></section><fieldset class="appearance"><legend>Appearance</legend><div class="theme-options">${["light", "dark", "system", "sans"].map((t) => `<button data-theme-choice="${t}" aria-pressed="${getTheme() === t}">${t === "sans" ? "Sans mode ♡" : t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div></fieldset><fieldset class="appearance"><legend>Helpers</legend><div class="theme-options"><button id="pref-mistakes">Mistake alerts</button><button id="pref-timer">Show timer</button></div></fieldset><section class="record"><h3>Your little record</h3><p id="record-text"></p></section><p>On iPhone, open in Safari, tap Share, then Add to Home Screen.</p><p id="offline-detail"></p><p>Games are saved on this device. Clearing website data will remove them.</p><details><summary>A little shortcut</summary><p>Tap Auto (or long-press Notes) to toggle automatic candidates. They update as you play. Turn them off to return to your manual notes. Writing a manual note also turns them off.</p><button class="primary" id="fill-candidates">Fill candidates</button></details></dialog><dialog id="new-dialog"><h2>A fresh start?</h2><p>This replaces your saved ${difficulty} puzzle. Your other difficulties stay saved.</p><div class="dialog-actions"><button id="cancel-new">Keep playing</button><button class="primary" id="confirm-new">New puzzle</button></div></dialog>`;
 app.insertAdjacentHTML(
   "beforeend",
-  `<dialog id="nickname-dialog"><h2>Your little name</h2><p>What should we call you?</p><form id="nickname-form"><label for="nickname-input">Nickname</label><input id="nickname-input" name="nickname" maxlength="24" autocomplete="nickname" placeholder="Your nickname"><p class="metrics-notice">Your nickname, play time, and online playing status are visible only to the app owner. You can play as Guest instead.</p><div class="dialog-actions"><button type="button" id="nickname-guest">Play as Guest</button><button class="primary" type="submit">Let’s play</button></div></form></dialog>`,
+  `<dialog id="nickname-dialog"><h2>Your little name</h2><p>What should we call you?</p><form id="nickname-form"><label for="nickname-input">Nickname</label><input id="nickname-input" name="nickname" maxlength="24" autocomplete="nickname" placeholder="Your nickname"><p class="form-error" id="nickname-error" role="alert" hidden>That name is reserved ♡ Try another.</p><p class="metrics-notice">Your nickname, play time, and online playing status are visible only to the app owner. You can play as Guest instead.</p><div class="dialog-actions"><button type="button" id="nickname-guest">Play as Guest</button><button class="primary" type="submit">Let’s play</button></div></form></dialog><dialog id="signin-dialog"><h2>Sign in</h2><p>Optional. Signing in unlocks special things and keeps your stats together on every device.</p><form id="signin-form"><label for="signin-user">Username</label><input id="signin-user" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="40" required><label for="signin-pass">Password</label><input id="signin-pass" name="password" type="password" autocomplete="current-password" maxlength="100" required><p class="form-error" id="signin-error" role="alert" hidden></p><div class="dialog-actions"><button type="button" id="signin-cancel">Not now</button><button class="primary" type="submit" id="signin-submit">Sign in</button></div></form></dialog>`,
 );
 const nicknameDialog =
   document.querySelector<HTMLDialogElement>("#nickname-dialog")!;
@@ -113,8 +121,13 @@ function updateProfile() {
   document.querySelector<HTMLButtonElement>(
     '[data-theme-choice="sans"]',
   )!.hidden = !canUseSans();
-  document.querySelector("#player-label")!.textContent =
-    getProfile().nickname || "Guest";
+  const account = Boolean(getProfile().account);
+  document.querySelector("#player-label")!.textContent = account
+    ? "sans ♡"
+    : getProfile().nickname || "Guest";
+  document.querySelector<HTMLElement>("#edit-nickname")!.hidden = account;
+  document.querySelector<HTMLElement>("#signin-open")!.hidden = account;
+  document.querySelector<HTMLElement>("#signout")!.hidden = !account;
   document
     .querySelectorAll<HTMLButtonElement>("[data-theme-choice]")
     .forEach((b) =>
@@ -129,6 +142,8 @@ function updateProfile() {
 }
 document.querySelector("#nickname-form")!.addEventListener("submit", (e) => {
   e.preventDefault();
+  const reserved = reservedName(nicknameInput.value);
+  document.querySelector<HTMLElement>("#nickname-error")!.hidden = !reserved;
   if (!setNickname(nicknameInput.value)) return;
   nicknameDialog.close();
   updateProfile();
@@ -140,6 +155,51 @@ document.querySelector<HTMLButtonElement>("#nickname-guest")!.onclick = () => {
   updateProfile();
   touchMetrics(game);
 };
+const signinDialog =
+  document.querySelector<HTMLDialogElement>("#signin-dialog")!;
+const signinError = document.querySelector<HTMLElement>("#signin-error")!;
+document.querySelector<HTMLButtonElement>("#signin-open")!.onclick = () => {
+  settings.close();
+  signinError.hidden = true;
+  signinDialog.showModal();
+};
+document.querySelector<HTMLButtonElement>("#signin-cancel")!.onclick = () =>
+  signinDialog.close();
+document.querySelector("#signin-form")!.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const submit = document.querySelector<HTMLButtonElement>("#signin-submit")!;
+  const user = document.querySelector<HTMLInputElement>("#signin-user")!;
+  const pass = document.querySelector<HTMLInputElement>("#signin-pass")!;
+  submit.disabled = true;
+  signinError.hidden = true;
+  const result = await signIn(user.value, pass.value);
+  submit.disabled = false;
+  if (!result.ok) {
+    signinError.textContent = result.message;
+    signinError.hidden = false;
+    return;
+  }
+  pass.value = "";
+  startAccount(result.playerId);
+  setTheme("sans");
+  signinDialog.close();
+  updateProfile();
+  touchMetrics(game);
+  setMessage("Welcome, sans ♡ Sans mode is on.");
+});
+document.querySelector<HTMLButtonElement>("#signout")!.onclick = async () => {
+  await signOut();
+  endAccount();
+  updateProfile();
+  touchMetrics(game);
+};
+void checkSession().then((state) => {
+  // Only an explicit "signed out" answer revokes; being offline never does.
+  if (state === "out" && getProfile().account) {
+    endAccount();
+    updateProfile();
+  }
+});
 document.querySelector<HTMLButtonElement>("#edit-nickname")!.onclick = () => {
   settings.close();
   nicknameInput.value = getProfile().nickname;

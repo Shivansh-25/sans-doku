@@ -1,0 +1,146 @@
+// Optional sign-in for the shared "sans" account. Guests never need this.
+const accountCookieName = "__Host-sansdoku-session";
+const accountSessionSeconds = 365 * 86400;
+const accountUser = "sans";
+const accountEnc = new TextEncoder();
+const accountHeaders = {
+  "Content-Type": "application/json",
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+};
+const accountReply = (body, status = 200, extra = {}) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { ...accountHeaders, ...extra },
+  });
+const accountB64 = (bytes) =>
+  btoa(String.fromCharCode(...new Uint8Array(bytes)))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+const accountUnb64 = (text) =>
+  Uint8Array.from(atob(text.replaceAll("-", "+").replaceAll("_", "/")), (c) =>
+    c.charCodeAt(0),
+  );
+const accountConfigured = (env) =>
+  typeof env.SANS_PASSWORD === "string" && env.SANS_PASSWORD.length >= 6;
+// Changing the password invalidates every existing session.
+const accountKey = (env) =>
+  crypto.subtle.importKey(
+    "raw",
+    accountEnc.encode("sansdoku-session-v1:" + env.SANS_PASSWORD),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"],
+  );
+// A stable, UUIDv4-shaped id so her stats follow her across devices.
+export async function accountPlayerId() {
+  const h = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", accountEnc.encode("sansdoku-account:" + accountUser)),
+  );
+  const hex = [...h.slice(0, 16)].map((b) => b.toString(16).padStart(2, "0"));
+  hex[6] = "4" + hex[6][1];
+  hex[8] = "89ab"[parseInt(hex[8][0], 16) % 4] + hex[8][1];
+  const s = hex.join("");
+  return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
+}
+export async function sessionUser(request, env) {
+  if (!accountConfigured(env)) return null;
+  const token = (request.headers.get("Cookie") || "")
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(accountCookieName + "="))
+    ?.slice(accountCookieName.length + 1);
+  if (!token || token.length > 1024) return null;
+  try {
+    const [payload, signature, extra] = token.split(".");
+    if (extra !== undefined || !payload || !signature) return null;
+    if (
+      !(await crypto.subtle.verify(
+        "HMAC",
+        await accountKey(env),
+        accountUnb64(signature),
+        accountEnc.encode(payload),
+      ))
+    )
+      return null;
+    const claims = JSON.parse(new TextDecoder().decode(accountUnb64(payload)));
+    const now = Math.floor(Date.now() / 1000);
+    return claims.u === accountUser &&
+      Number.isSafeInteger(claims.iat) &&
+      Number.isSafeInteger(claims.exp) &&
+      claims.iat <= now &&
+      claims.exp > now
+      ? accountUser
+      : null;
+  } catch {
+    return null;
+  }
+}
+const accountCookie = (value, age = accountSessionSeconds) =>
+  `${accountCookieName}=${value}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${age}`;
+export async function handleAccount(request, env) {
+  const url = new URL(request.url);
+  if (url.pathname === "/api/session") {
+    if (request.method !== "GET") return accountReply({ error: "Method not allowed" }, 405);
+    const user = await sessionUser(request, env);
+    return accountReply(user ? { username: user, playerId: await accountPlayerId() } : { username: null });
+  }
+  if (url.pathname !== "/api/login" && url.pathname !== "/api/logout") return null;
+  if (request.method !== "POST") return accountReply({ error: "Method not allowed" }, 405);
+  if (request.headers.get("Origin") !== url.origin)
+    return accountReply({ error: "Origin not allowed" }, 403);
+  if (url.pathname === "/api/logout") return accountReply({ ok: true }, 200, { "Set-Cookie": accountCookie("", 0) });
+  if (!accountConfigured(env)) return accountReply({ error: "Sign-in isn't set up yet." }, 503);
+  if (!request.headers.get("Content-Type")?.startsWith("application/json"))
+    return accountReply({ error: "JSON required" }, 415);
+  try {
+    const text = await request.text();
+    if (text.length > 2048) return accountReply({ error: "Request too large" }, 413);
+    const body = JSON.parse(text);
+    const user = typeof body.username === "string" ? body.username : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    // Reuse the admin attempts table: at most 10 tries per 15 minutes per keyed IP hash.
+    if (env.DB) {
+      const now = Date.now(),
+        bucket = Math.floor(now / 900000);
+      const ip = request.headers.get("CF-Connecting-IP") || "local";
+      const ipHash = accountB64(
+        await crypto.subtle.sign("HMAC", await accountKey(env), accountEnc.encode("account-rate:" + ip)),
+      );
+      const results = await env.DB.batch([
+        env.DB.prepare("DELETE FROM admin_login_attempts WHERE expires_at <= ?").bind(now),
+        env.DB.prepare(
+          `INSERT INTO admin_login_attempts (id,attempts,expires_at) VALUES (?,1,?)
+          ON CONFLICT(id) DO UPDATE SET attempts=attempts+1 RETURNING attempts`,
+        ).bind(`acct:${ipHash}:${bucket}`, (bucket + 1) * 900000),
+      ]);
+      if (results[1].results[0].attempts > 10)
+        return accountReply(
+          { error: "Too many tries. Please wait a few minutes." },
+          429,
+          { "Retry-After": String(Math.ceil(((bucket + 1) * 900000 - now) / 1000)) },
+        );
+    }
+    const digest = async (v) =>
+      new Uint8Array(await crypto.subtle.digest("SHA-256", accountEnc.encode(v)));
+    const supplied = await digest(password),
+      expected = await digest(env.SANS_PASSWORD);
+    let difference = 0;
+    for (let i = 0; i < expected.length; i++) difference |= supplied[i] ^ expected[i];
+    if (difference !== 0 || user.trim().toLowerCase() !== accountUser)
+      return accountReply({ error: "Username or password is incorrect." }, 401);
+    const iat = Math.floor(Date.now() / 1000);
+    const payload = accountB64(accountEnc.encode(JSON.stringify({ u: accountUser, iat, exp: iat + accountSessionSeconds })));
+    const signature = accountB64(
+      await crypto.subtle.sign("HMAC", await accountKey(env), accountEnc.encode(payload)),
+    );
+    return accountReply(
+      { username: accountUser, playerId: await accountPlayerId() },
+      200,
+      { "Set-Cookie": accountCookie(`${payload}.${signature}`) },
+    );
+  } catch {
+    return accountReply({ error: "Sign-in is temporarily unavailable." }, 503);
+  }
+}
