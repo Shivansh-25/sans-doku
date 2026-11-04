@@ -121,7 +121,10 @@ export function enter(
   if (noteMode) {
     if (game.values[index] || !n) return false;
     remember(game);
-    game.autoCandidates = false;
+    if (game.autoCandidates) {
+      game.notes = game.values.map((_, i) => candidates(game.values, i));
+      game.autoCandidates = false;
+    }
     const notes = game.notes[index];
     game.notes[index] = notes.includes(n)
       ? notes.filter((v) => v !== n)
